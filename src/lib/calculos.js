@@ -322,13 +322,21 @@ export function huchaPeriodicos(db) {
   return { saldo, alMes };
 }
 
-// Ahorros principales: lo que ya tenías + lo que apartas (también a tus
-// objetivos). No incluye "Pagos no mensuales", que es una cuenta aparte.
+// Cada cuenta de ahorro va por separado: Ahorros principales (lo que ya tenías
+// + lo que apartas ahí), Pagos no mensuales y cada objetivo.
 export function ahorrosPrincipales(db) {
   return r2(
     sum(
-      db.movimientos.filter((m) => m.tipo === "inicial" || (m.tipo === "ahorro" && m.objetivoId !== OBJETIVO_FIJO.id)),
+      db.movimientos.filter((m) => m.tipo === "inicial" || (m.tipo === "ahorro" && m.objetivoId === AHORRO_PRINCIPAL.id)),
       (m) => m.importe
     )
   );
+}
+
+// Lo que hay entre todas las cuentas de ahorro
+export function resumenCuentas(db) {
+  const principales = ahorrosPrincipales(db);
+  const noMensuales = huchaPeriodicos(db).saldo;
+  const objetivos = r2(sum(db.objetivos, (o) => ahorradoObjetivo(db, o.id)));
+  return { principales, noMensuales, objetivos, total: r2(principales + noMensuales + objetivos) };
 }

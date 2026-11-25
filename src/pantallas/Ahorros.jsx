@@ -1,7 +1,7 @@
 // Ahorros: lo que tienes apartado y tus objetivos
 import { Plus, ArrowDownToLine, CalendarClock } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { ahorradoObjetivo, ahorrosPrincipales, evolucionAhorro, huchaPeriodicos, primerMes, OBJETIVO_FIJO, AHORRO_PRINCIPAL } from "../lib/calculos.js";
+import { ahorradoObjetivo, ahorrosPrincipales, resumenCuentas, evolucionAhorro, huchaPeriodicos, primerMes, OBJETIVO_FIJO, AHORRO_PRINCIPAL } from "../lib/calculos.js";
 import { eur, nombreMes, mayus, MESES, MESES_CORTOS, r2, sum, mesActual, moverMes } from "../lib/formato.js";
 import { Cifra, BarraRayas, Hoja } from "../components/comunes.jsx";
 import { Ficha } from "../lib/iconos.jsx";
@@ -11,14 +11,10 @@ import { PropuestaCierre } from "../components/PropuestaCierre.jsx";
 export default function Ahorros() {
   const { db } = useDatos();
   const ui = useUI();
-  const aportes = db.movimientos.filter((m) => m.tipo === "ahorro");
-  const especiales = new Set([OBJETIVO_FIJO.id, AHORRO_PRINCIPAL.id]);
-  const enObjetivos = r2(sum(aportes.filter((m) => !especiales.has(m.objetivoId)), (m) => m.importe));
-  // Cuenta aparte de "Pagos no mensuales": no se suma aquí
+  // Cada cuenta va por separado: aquí solo Ahorros principales
   const total = ahorrosPrincipales(db);
-  const esteMes = r2(sum(aportes.filter((m) => m.objetivoId !== OBJETIVO_FIJO.id && m.fecha.startsWith(ui.mes)), (m) => m.importe));
-  const metas = r2(sum(db.objetivos, (o) => o.meta));
-  const conMeta = db.objetivos.filter((o) => o.meta > 0);
+  const esteMes = r2(sum(db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === AHORRO_PRINCIPAL.id && m.fecha.startsWith(ui.mes)), (m) => m.importe));
+  const cuentas = resumenCuentas(db);
 
   return (
     <div className="ahorros">
@@ -42,16 +38,17 @@ export default function Ahorros() {
           <span className={`pill ${esteMes > 0 ? "pill-lima" : ""}`}>{eur(esteMes, { signo: true, corto: true })}</span>
           <span className="saldo-nota">apartado en {nombreMes(ui.mes)}</span>
         </div>
-        {metas > 0 && (
-          <div className="ahorro-total-pie">
-            <span>
-              {db.objetivos.length} {db.objetivos.length === 1 ? "objetivo" : "objetivos"} · metas {eur(metas, { corto: true })}
-            </span>
-            <span>{Math.min(100, Math.round((enObjetivos / metas) * 100))} % conseguido</span>
-          </div>
-        )}
-        {conMeta.length > 0 && <BarraRayas pct={(enObjetivos / metas) * 100} />}
       </section>
+
+      <div className="tarjeta entre-cuentas">
+        <div className="entre-cuentas-cab">
+          <span>Entre todas tus cuentas</span>
+          <b>{eur(cuentas.total)}</b>
+        </div>
+        <small>
+          Principales {eur(cuentas.principales, { corto: true })} · Pagos no mensuales {eur(cuentas.noMensuales, { corto: true })} · Objetivos {eur(cuentas.objetivos, { corto: true })}
+        </small>
+      </div>
 
       {/* Por defecto va a Ahorros principales; ahí se puede elegir otro destino */}
       <button type="button" className="btn btn-primario ahorro-apartar" onClick={() => ui.abrir("apuntar", { tipo: "ahorro", objetivoId: AHORRO_PRINCIPAL.id })}>
