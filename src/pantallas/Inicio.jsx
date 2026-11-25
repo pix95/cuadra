@@ -1,8 +1,8 @@
-import { ArrowUpRight, ArrowDownLeft, Banknote, Bell, Search, ChevronDown, TrendingUp, TrendingDown, Plus, ChevronRight, Pencil } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Banknote, Bell, Search, ChevronDown, TrendingUp, TrendingDown, ChevronRight, Pencil } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { resumenMes, recibosMes, alertas, ahorradoObjetivo } from "../lib/calculos.js";
-import { eur, nombreMes, mesCorto, saludo, mayus, MESES_CORTOS, pct } from "../lib/formato.js";
-import { Cifra, Sparkline, BarraRayas, Vacio } from "../components/comunes.jsx";
+import { resumenMes, recibosMes, alertas } from "../lib/calculos.js";
+import { eur, nombreMes, mesCorto, saludo, pct } from "../lib/formato.js";
+import { Cifra, Sparkline, Vacio } from "../components/comunes.jsx";
 import { Ficha } from "../lib/iconos.jsx";
 import { ICONO } from "../config.js";
 import { FilaMovimiento, ordenarMovs } from "../components/FilaMovimiento.jsx";
@@ -52,8 +52,6 @@ export default function Inicio() {
       <TarjetaSaldo r={r} mesTxt={mesTxt} />
 
       {recibos.length > 0 && <TarjetaRecibos recibos={recibos} mesTxt={mesTxt} />}
-
-      <Objetivos />
 
       <section className="seccion">
         <div className="seccion-cab">
@@ -154,58 +152,5 @@ function TarjetaRecibos({ recibos, mesTxt }) {
         ))}
       </div>
     </button>
-  );
-}
-
-function Objetivos() {
-  const { db } = useDatos();
-  const ui = useUI();
-  if (!db.objetivos.length) {
-    return (
-      <button type="button" className="tarjeta objetivo-nuevo" onClick={() => ui.abrir("objetivo")}>
-        <Ficha icono="hucha" color="#f6a57c" size={42} />
-        <span>
-          <b>Crea un objetivo de ahorro</b>
-          <small>Un viaje, un colchón, un capricho… y ve apartando.</small>
-        </span>
-        <Plus size={20} className="tenue" />
-      </button>
-    );
-  }
-  return (
-    <div className="carrusel" role="list">
-      {db.objetivos.map((o) => {
-        const ahorrado = ahorradoObjetivo(db, o.id);
-        const p = o.meta > 0 ? (ahorrado / o.meta) * 100 : 0;
-        const fecha = o.fecha ? ` · ${mayus(MESES_CORTOS[Number(o.fecha.slice(5)) - 1])} ${o.fecha.slice(0, 4)}` : "";
-        return (
-          <button type="button" role="listitem" key={o.id} className="tarjeta objetivo" onClick={() => ui.abrir("objetivo", { objetivo: o })}>
-            <div className="objetivo-cab">
-              <Ficha icono={o.icono} color="#f6a57c" size={42} />
-              <span className="objetivo-txt">
-                <b>{o.nombre}</b>
-                <small>
-                  {o.meta > 0 ? `${eur(ahorrado, { corto: true })} de ${eur(o.meta, { corto: true })}` : `${eur(ahorrado, { corto: true })} ahorrados`}
-                  {fecha}
-                </small>
-              </span>
-              {o.meta > 0 && (
-                <span className="objetivo-pct">
-                  <span>
-                    <em>{Math.min(999, Math.round(p))}</em>
-                    <i>%</i>
-                  </span>
-                  <small>ahorrado</small>
-                </span>
-              )}
-            </div>
-            <BarraRayas pct={p} />
-          </button>
-        );
-      })}
-      <button type="button" className="tarjeta objetivo-mas" onClick={() => ui.abrir("objetivo")} aria-label="Nuevo objetivo de ahorro">
-        <Plus size={22} />
-      </button>
-    </div>
   );
 }

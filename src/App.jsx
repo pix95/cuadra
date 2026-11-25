@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { House, ReceiptText, ChartColumnBig, Wallet, FlaskConical, RotateCcw } from "lucide-react";
+import { House, ReceiptText, ChartColumnBig, Wallet, PiggyBank, FlaskConical, RotateCcw } from "lucide-react";
 import { useDatos, useUI, UIProvider } from "./store.jsx";
 import { mesActual } from "./lib/formato.js";
 import { ICONO } from "./config.js";
@@ -8,11 +8,12 @@ import Movimientos from "./pantallas/Movimientos.jsx";
 import Analisis from "./pantallas/Analisis.jsx";
 import Presupuesto from "./pantallas/Presupuesto.jsx";
 import Simulador from "./pantallas/Simulador.jsx";
+import Ahorros from "./pantallas/Ahorros.jsx";
 import Apuntar from "./pantallas/Apuntar.jsx";
 import Acceso from "./pantallas/Acceso.jsx";
 import { HojaSueldo, HojaPartida, HojaObjetivo, HojaAlertas, HojaRecibos, HojaAjustes, HojaElegirPartida, HojaMeses, HojaConfirmar } from "./pantallas/Hojas.jsx";
 
-const PANTALLAS = { inicio: Inicio, movimientos: Movimientos, analisis: Analisis, presupuesto: Presupuesto, simulador: Simulador };
+const PANTALLAS = { inicio: Inicio, movimientos: Movimientos, analisis: Analisis, presupuesto: Presupuesto, ahorros: Ahorros, simulador: Simulador };
 const CAPAS = {
   apuntar: Apuntar,
   sueldo: HojaSueldo,
@@ -31,6 +32,7 @@ const PESTAÑAS = [
   { id: "movimientos", texto: "Historial", Icono: ReceiptText },
   { id: "analisis", texto: "Análisis", Icono: ChartColumnBig },
   { id: "presupuesto", texto: "Presupuesto", Icono: Wallet },
+  { id: "ahorros", texto: "Ahorros", Icono: PiggyBank },
   { id: "simulador", texto: "Simular", Icono: FlaskConical },
 ];
 

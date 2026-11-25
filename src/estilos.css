@@ -1035,13 +1035,46 @@ button.tarjeta:hover {
 .nav-item[aria-current="page"] span {
   display: inline;
 }
-@media (max-width: 370px) {
+.nav-item[aria-current="page"] span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Seis secciones: en móviles el menú se ajusta para que quepa */
+@media (max-width: 460px) {
+  .nav {
+    gap: 2px;
+    padding: 6px;
+  }
   .nav-item {
-    min-width: 42px;
+    min-width: 40px;
+    height: 50px;
   }
   .nav-item[aria-current="page"] {
+    flex: 1 1 auto;
+    min-width: 0;
     padding: 0 12px;
+    gap: 6px;
     font-size: 14px;
+  }
+}
+@media (max-width: 400px) {
+  .nav {
+    width: calc(100% - 16px);
+    padding: 5px;
+  }
+  .nav-item {
+    min-width: 36px;
+  }
+  .nav-item svg {
+    width: 20px;
+    height: 20px;
+  }
+  .nav-item[aria-current="page"] {
+    padding: 0 10px;
+    gap: 5px;
+    font-size: 13.5px;
   }
 }
 
@@ -2477,6 +2510,37 @@ button.recibo-ok:active {
   gap: 10px;
   color: var(--texto-2);
   font-weight: 600;
+}
+
+/* ---------- Ahorros ---------- */
+.ahorro-total .saldo-arriba svg {
+  opacity: 0.85;
+}
+.ahorro-total-pie {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+.ahorro-total .rayas i {
+  background: rgba(255, 255, 255, 0.18);
+}
+.ahorro-total .rayas i.llena {
+  background: var(--lima);
+}
+.ahorro-apartar {
+  width: 100%;
+  margin-top: 16px;
+}
+.lista-objetivos {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lista-objetivos .tarjeta {
+  margin: 0;
 }
 
 /* ---------- Simulador ---------- */
