@@ -7,7 +7,7 @@ import { Hoja, CampoImporte, Interruptor, Barra, BarraRayas } from "../component
 import { Ficha, Icono, ICONOS, ICONOS_OBJETIVO, colorCategoria } from "../lib/iconos.jsx";
 import {
   presupuestoMensual, recibosMes, alertas, ordenar, ordenCategorias, esMensual, gastosPorPartida, movsDeMes, ahorradoObjetivo,
-  FRECUENCIAS, CADA, resumenMes, estadoDe, porcentaje, acumuladoAño, anual,
+  FRECUENCIAS, CADA, resumenMes, estadoDe, porcentaje, acumuladoAño, anual, objetivosConFijo, OBJETIVO_FIJO,
 } from "../lib/calculos.js";
 import { eur, parseImporte, aInput, nombreMes, mesActual, moverMes, hoyISO, diasEnMes, MESES_CORTOS, mayus, fechaCorta, r2 } from "../lib/formato.js";
 
@@ -825,7 +825,7 @@ export function HojaConfirmar({ titulo, texto, boton = "Confirmar", peligro = fa
 export function HojaCierre({ mes, importe, fecha, cerrar }) {
   const { db, acc } = useDatos();
   const ui = useUI();
-  const [objetivoId, setObjetivoId] = useState(db.objetivos[0]?.id || "");
+  const [objetivoId, setObjetivoId] = useState(db.objetivos[0]?.id || OBJETIVO_FIJO.id);
   const [txt, setTxt] = useState(aInput(importe));
   const [error, setError] = useState("");
   const valor = parseImporte(txt);
@@ -836,7 +836,7 @@ export function HojaCierre({ mes, importe, fecha, cerrar }) {
     try {
       const m = await acc.guardarMovimiento({ tipo: "ahorro", fecha, importe: valor, objetivoId, concepto: `Sobrante de ${nombreMes(mes)}` });
       cerrar();
-      const o = db.objetivos.find((x) => x.id === objetivoId);
+      const o = objetivosConFijo(db).find((x) => x.id === objetivoId);
       ui.avisar(`${eur(valor)} apartados para ${o?.nombre}`, { texto: "Deshacer", fn: () => acc.borrarMovimiento(m.id) });
     } catch (e) {
       setError(e.message);
@@ -858,13 +858,15 @@ export function HojaCierre({ mes, importe, fecha, cerrar }) {
       <div className="campo">
         <span>Para qué objetivo</span>
         <div className="lista">
-          {db.objetivos.map((o) => (
+          {objetivosConFijo(db).map((o) => (
             <button key={o.id} type="button" className={`fila-partida elegible ${o.id === objetivoId ? "on" : ""}`} onClick={() => setObjetivoId(o.id)} aria-pressed={o.id === objetivoId}>
               <Ficha icono={o.icono} color="#f6a57c" size={40} />
               <span className="fila-partida-txt">
                 <b>{o.nombre}</b>
                 <small>
-                  {eur(ahorradoObjetivo(db, o.id), { corto: true })} ahorrados{o.meta > 0 ? ` de ${eur(o.meta, { corto: true })}` : ""}
+                  {o.fijo ? "Para IBI, comunidad, agua… · " : ""}
+                  {eur(ahorradoObjetivo(db, o.id), { corto: true })} {o.fijo ? "en la hucha" : "ahorrados"}
+                  {o.meta > 0 ? ` de ${eur(o.meta, { corto: true })}` : ""}
                 </small>
               </span>
               {o.id === objetivoId && <Check size={18} className="positivo" />}

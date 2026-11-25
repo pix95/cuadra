@@ -1,5 +1,7 @@
 // Cálculos del presupuesto. Todo es puro: recibe los datos y devuelve cifras.
 import { r2, sum, diasEnMes, fechaDe, iso, sumarDias, moverMes, hoyISO } from "./formato.js";
+import { OBJETIVO_FIJO, objetivosConFijo } from "../../shared/modelo.js";
+export { OBJETIVO_FIJO, objetivosConFijo };
 
 export const FRECUENCIAS = ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual"];
 export const VECES = { Mensual: 12, Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1 };
@@ -72,12 +74,17 @@ export function resumenMes(db, mes, hoy = hoyISO()) {
   const disponible = r2(entradas - gastado - ahorrado);
 
   // Lo que todavía falta por salir según el presupuesto (nunca negativo por partida)
-  let pendiente = 0;
+  // Lo apartado este mes a "Pagos no mensuales" ya cubre la parte de los pagos periódicos
+  let pendienteMensual = 0;
+  let pendientePeriodico = 0;
   for (const p of db.partidas) {
     if (!p.activa) continue;
-    pendiente += Math.max(0, previstoMes(p) - (gp.get(p.id) || 0));
+    const falta = Math.max(0, previstoMes(p) - (gp.get(p.id) || 0));
+    if (esMensual(p)) pendienteMensual += falta;
+    else pendientePeriodico += falta;
   }
-  pendiente = r2(pendiente);
+  const aHucha = sum(movs.filter((m) => m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id), (m) => m.importe);
+  const pendiente = r2(pendienteMensual + Math.max(0, pendientePeriodico - aHucha));
   const prevision = r2(disponible - pendiente);
 
   const pres = presupuestoMensual(db.partidas);
@@ -123,6 +130,7 @@ export function acumuladoAño(db, mes) {
 }
 
 export function ahorradoObjetivo(db, id) {
+  if (id === OBJETIVO_FIJO.id) return huchaPeriodicos(db).saldo;
   return r2(sum(db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === id), (m) => m.importe));
 }
 
@@ -304,25 +312,14 @@ export function evolucionAhorro(db, hasta, n = 12) {
   return out;
 }
 
-// Hucha de pagos periódicos: cada mes se "aparta" su parte proporcional y
-// se gasta cuando llegan los recibos. Cuenta desde el primer mes con datos.
-export function huchaPeriodicos(db, hoy = hoyISO()) {
-  const inicio = primerMes(db, hoy);
-  const actual = hoy.slice(0, 7);
-  let meses = 0;
-  for (let m = inicio; m <= actual; m = moverMes(m, 1)) meses++;
-  const periodicas = ordenar(db.partidas.filter((p) => !esMensual(p) && (p.activa || db.movimientos.some((m) => m.partidaId === p.id))));
-  const ids = new Set(periodicas.map((p) => p.id));
-  const pagos = db.movimientos.filter((m) => m.tipo === "gasto" && ids.has(m.partidaId) && m.fecha.slice(0, 7) >= inicio && m.fecha.slice(0, 7) <= actual);
-  const alMes = r2(sum(periodicas.filter((p) => p.activa), prorrateo));
-  const apartado = r2(alMes * meses);
-  const pagado = r2(sum(pagos, (m) => m.importe));
-  const año = actual.slice(0, 4);
-  const porPartida = periodicas.filter((p) => (p.activa && p.importe > 0) || pagos.some((m) => m.partidaId === p.id)).map((p) => ({
-    partida: p,
-    pagadoAño: r2(sum(pagos.filter((m) => m.partidaId === p.id && m.fecha.startsWith(año)), (m) => m.importe)),
-    anual: p.activa ? r2(anual(p)) : 0,
-    ultimo: pagos.filter((m) => m.partidaId === p.id).sort((a, b) => b.fecha.localeCompare(a.fecha))[0]?.fecha || null,
-  }));
-  return { inicio, meses, alMes, apartado, pagado, saldo: r2(apartado - pagado), porPartida };
+// "Pagos no mensuales": lo que apartas tú (cuando quieres) menos lo que pagas
+// de recibos periódicos desde tu primera aportación.
+export function huchaPeriodicos(db) {
+  const aportes = db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id);
+  const apartado = r2(sum(aportes, (m) => m.importe));
+  const desde = aportes.map((m) => m.fecha).sort()[0] || null;
+  const ids = new Set(db.partidas.filter((p) => !esMensual(p)).map((p) => p.id));
+  const pagado = desde ? r2(sum(db.movimientos.filter((m) => m.tipo === "gasto" && ids.has(m.partidaId) && m.fecha >= desde), (m) => m.importe)) : 0;
+  const alMes = r2(sum(db.partidas.filter((p) => p.activa && !esMensual(p)), prorrateo));
+  return { desde, apartado, pagado, saldo: r2(apartado - pagado), alMes };
 }

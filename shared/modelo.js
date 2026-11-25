@@ -17,6 +17,17 @@ export const uid = () =>
         return (c === "x" ? r : (r & 3) | 8).toString(16);
       });
 
+// Objetivo fijo "Pagos no mensuales": existe siempre y no se guarda como objetivo
+export const OBJETIVO_FIJO = {
+  id: "00000000-0000-4000-8000-0000000000fa",
+  nombre: "Pagos no mensuales",
+  meta: 0,
+  fecha: null,
+  icono: "calendario",
+  fijo: true,
+};
+export const objetivosConFijo = (d) => [OBJETIVO_FIJO, ...(d.objetivos || [])];
+
 export class ErrorDatos extends Error {
   constructor(msg, status = 400) {
     super(msg);
@@ -143,7 +154,7 @@ function validarMovimiento(b, d, base = {}) {
   } else if (tipo === "ahorro") {
     if (!objetivoId) falla("Elige un objetivo de ahorro.");
     // Se permite conservar el de un objetivo ya eliminado al editar
-    if (!d.objetivos.some((o) => o.id === objetivoId) && objetivoId !== base.objetivoId) falla("El objetivo no existe.");
+    if (!objetivosConFijo(d).some((o) => o.id === objetivoId) && objetivoId !== base.objetivoId) falla("El objetivo no existe.");
     m.objetivoId = objetivoId;
   }
   return m;

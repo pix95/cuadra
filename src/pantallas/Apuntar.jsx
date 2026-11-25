@@ -5,7 +5,7 @@ import { ChevronLeft, CalendarDays, Trash2, ChevronsUpDown, Plus, Undo2, PencilL
 import { useDatos, useUI } from "../store.jsx";
 import { Teclado, aplicarTecla, valorTeclado, tecladoDe, CifraTecleada, Deslizar, Segmentado } from "../components/comunes.jsx";
 import { Ficha, colorCategoria } from "../lib/iconos.jsx";
-import { partidasFrecuentes, esMensual, anual, gastosPorPartida, ahorradoObjetivo } from "../lib/calculos.js";
+import { partidasFrecuentes, esMensual, anual, gastosPorPartida, ahorradoObjetivo, objetivosConFijo, OBJETIVO_FIJO } from "../lib/calculos.js";
 import { eur, hoyISO, mesActual, diasEnMes, fechaRelativa, fechaCorta, nombreMes, r2 } from "../lib/formato.js";
 
 const TITULOS = { gasto: ["Nuevo gasto", "Editar gasto"], ingreso: ["Nuevo ingreso", "Editar ingreso"], ahorro: ["Apartar ahorro", "Editar ahorro"] };
@@ -35,7 +35,7 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
   const [valor, setValor] = useState(movimiento ? tecladoDe(movimiento.importe) : impInicial ? tecladoDe(impInicial) : "");
   const [negativo, setNegativo] = useState(movimiento ? movimiento.importe < 0 : false);
   const [partidaId, setPartidaId] = useState(movimiento?.partidaId || pInicial || "");
-  const [objetivoId, setObjetivoId] = useState(movimiento?.objetivoId || oInicial || db.objetivos[0]?.id || "");
+  const [objetivoId, setObjetivoId] = useState(movimiento?.objetivoId || oInicial || db.objetivos[0]?.id || OBJETIVO_FIJO.id);
   const [fecha, setFecha] = useState(movimiento?.fecha || fechaPorDefecto(ui.mes));
   const [concepto, setConcepto] = useState(movimiento?.concepto || "");
   const [verNota, setVerNota] = useState(Boolean(movimiento?.concepto));
@@ -50,7 +50,7 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
   }, []);
 
   const partida = db.partidas.find((p) => p.id === partidaId);
-  const objetivo = db.objetivos.find((o) => o.id === objetivoId);
+  const objetivo = objetivosConFijo(db).find((o) => o.id === objetivoId);
   const importe = valorTeclado(valor);
 
   const frecuentes = useMemo(() => {
@@ -237,7 +237,7 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
                 </span>
                 Nuevo
               </button>
-              {db.objetivos.map((o) => (
+              {objetivosConFijo(db).map((o) => (
                 <button key={o.id} type="button" role="option" aria-selected={o.id === objetivoId} className="avatar-op" onClick={() => setObjetivoId(o.id)}>
                   <Ficha icono={o.icono} color="#f6a57c" size={56} radio={28} />
                   <span className="avatar-op-txt">{o.nombre}</span>

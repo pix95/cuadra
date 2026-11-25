@@ -22,8 +22,7 @@ export function PropuestaCierre() {
   if (!p || descartado(p.mes)) return null;
 
   function apartar() {
-    if (db.objetivos.length) ui.abrir("cierre", { ...p });
-    else ui.abrir("objetivo", { onGuardado: () => ui.abrir("cierre", { ...p }) });
+    ui.abrir("cierre", { ...p });
   }
   function ahoraNo() {
     try {
@@ -47,7 +46,7 @@ export function PropuestaCierre() {
       </div>
       <div className="fila-botones">
         <button type="button" className="btn btn-primario" onClick={apartar}>
-          {db.objetivos.length ? "Apartarlo" : "Crear objetivo y apartar"}
+          Apartarlo
         </button>
         <button type="button" className="btn btn-texto" onClick={ahoraNo}>
           Ahora no

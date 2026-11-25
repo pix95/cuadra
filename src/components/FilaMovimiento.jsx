@@ -1,6 +1,7 @@
 import { Ficha } from "../lib/iconos.jsx";
 import { colorCategoria } from "../lib/iconos.jsx";
 import { eur, fechaRelativa } from "../lib/formato.js";
+import { objetivosConFijo } from "../lib/calculos.js";
 
 const ESTADO = {
   gasto: (m) => (m.importe < 0 ? "Devolución" : "Gasto"),
@@ -11,7 +12,7 @@ const ESTADO = {
 
 export function describirMovimiento(m, db) {
   const p = m.tipo === "gasto" ? db.partidas.find((x) => x.id === m.partidaId) : null;
-  const o = m.tipo === "ahorro" ? db.objetivos.find((x) => x.id === m.objetivoId) : null;
+  const o = m.tipo === "ahorro" ? objetivosConFijo(db).find((x) => x.id === m.objetivoId) : null;
   const nombreBase = p ? p.nombre : o ? o.nombre : m.tipo === "ingreso" ? "Ingreso extra" : m.tipo === "ahorro" ? "Ahorro" : "Sin partida";
   const titulo = m.concepto || nombreBase;
   const sub = m.concepto ? nombreBase : p ? p.categoria : m.tipo === "ahorro" ? "Objetivo de ahorro" : "";

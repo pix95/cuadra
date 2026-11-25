@@ -1,7 +1,7 @@
 // Exportar e importar movimientos en CSV (separado por ";" para que Excel en
 // español lo abra bien). La importación acepta también el CSV de la versión
 // anterior de Cuadra: Fecha;Importe;Partida;Categoría;Concepto.
-import { uid, r2, normalizarPartida, ErrorDatos } from "./modelo.js";
+import { uid, r2, normalizarPartida, ErrorDatos, objetivosConFijo } from "./modelo.js";
 
 const TIPOS = { gasto: "Gasto", ingreso: "Ingreso", ahorro: "Ahorro", inicial: "Ahorro previo" };
 
@@ -21,7 +21,7 @@ const norm = (s) =>
 
 export function exportarCSV(d) {
   const partidas = new Map(d.partidas.map((p) => [p.id, p]));
-  const objetivos = new Map(d.objetivos.map((o) => [o.id, o]));
+  const objetivos = new Map(objetivosConFijo(d).map((o) => [o.id, o]));
   const filas = [["Fecha", "Tipo", "Importe", "Partida", "Categoría", "Objetivo", "Concepto"]];
   [...d.movimientos]
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || String(a.creado).localeCompare(String(b.creado)))
@@ -107,9 +107,9 @@ export function importarCSV(d, csv) {
   const cambiosMovs = [];
 
   const partidaPorNombre = new Map(d.partidas.map((p) => [norm(p.nombre), p]));
-  const objetivoPorNombre = new Map(d.objetivos.map((o) => [norm(o.nombre), o]));
+  const objetivoPorNombre = new Map(objetivosConFijo(d).map((o) => [norm(o.nombre), o]));
   const nombrePartida = new Map(d.partidas.map((p) => [p.id, norm(p.nombre)]));
-  const nombreObjetivo = new Map(d.objetivos.map((o) => [o.id, norm(o.nombre)]));
+  const nombreObjetivo = new Map(objetivosConFijo(d).map((o) => [o.id, norm(o.nombre)]));
   const clave = (fecha, tipo, importe, nombre, concepto) => [fecha, tipo, Number(importe).toFixed(2), nombre, norm(concepto)].join("|");
 
   // Lo que ya está apuntado: si vuelves a importar el mismo archivo no se duplica

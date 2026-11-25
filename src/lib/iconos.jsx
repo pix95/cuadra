@@ -3,7 +3,7 @@ import {
   House, Building2, Trash2, Landmark, HandCoins, ShieldCheck, Zap, Droplets, Smartphone, Wifi, Fuel, PawPrint,
   ShoppingBasket, ShoppingCart, Dumbbell, Trophy, Tv, Film, Sparkles, UtensilsCrossed, Coffee, Beer, Shirt, HeartPulse,
   Pill, Stethoscope, Wrench, Car, Bus, Train, Bike, Plane, Umbrella, Package, Gift, PiggyBank, Laptop, Gamepad2, Music,
-  BookOpen, GraduationCap, Baby, Scissors, Receipt, Wallet, Briefcase, Ticket, Lightbulb, Hammer, Cat, Dog, Target, Sprout,
+  BookOpen, GraduationCap, Baby, Scissors, Receipt, Wallet, Briefcase, Ticket, Lightbulb, Hammer, Cat, Dog, Target, Sprout, CalendarClock,
 } from "lucide-react";
 
 export const ICONOS = {
@@ -14,7 +14,7 @@ export const ICONOS = {
   medico: Stethoscope, taller: Wrench, coche: Car, bus: Bus, tren: Train, bici: Bike, viaje: Plane, imprevistos: Umbrella,
   paquete: Package, regalo: Gift, hucha: PiggyBank, ordenador: Laptop, juegos: Gamepad2, musica: Music, libros: BookOpen,
   estudios: GraduationCap, bebe: Baby, peluqueria: Scissors, recibo: Receipt, cartera: Wallet, trabajo: Briefcase,
-  entradas: Ticket, idea: Lightbulb, obras: Hammer, meta: Target, planta: Sprout,
+  entradas: Ticket, idea: Lightbulb, obras: Hammer, meta: Target, planta: Sprout, calendario: CalendarClock,
 };
 
 export const ICONOS_OBJETIVO = ["hucha", "viaje", "casa", "coche", "regalo", "ordenador", "imprevistos", "estudios", "bebe", "juegos", "meta", "planta"];
