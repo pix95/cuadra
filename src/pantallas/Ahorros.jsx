@@ -1,7 +1,7 @@
 // Ahorros: lo que tienes apartado y tus objetivos
 import { Plus, ArrowDownToLine, CalendarClock } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { ahorradoObjetivo, ahorrosPrincipales, resumenCuentas, evolucionAhorro, huchaPeriodicos, primerMes, OBJETIVO_FIJO, AHORRO_PRINCIPAL } from "../lib/calculos.js";
+import { ahorradoObjetivo, ahorrosPrincipales, resumenCuentas, resumenMes, evolucionAhorro, huchaPeriodicos, primerMes, OBJETIVO_FIJO, AHORRO_PRINCIPAL } from "../lib/calculos.js";
 import { eur, nombreMes, mayus, MESES, MESES_CORTOS, r2, sum, mesActual, moverMes } from "../lib/formato.js";
 import { Cifra, BarraRayas, Hoja } from "../components/comunes.jsx";
 import { Ficha } from "../lib/iconos.jsx";
@@ -15,6 +15,7 @@ export default function Ahorros() {
   const total = ahorrosPrincipales(db);
   const esteMes = r2(sum(db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === AHORRO_PRINCIPAL.id && m.fecha.startsWith(ui.mes)), (m) => m.importe));
   const cuentas = resumenCuentas(db);
+  const cuenta = resumenMes(db, mesActual());
 
   return (
     <div className="ahorros">
@@ -100,11 +101,22 @@ export default function Ahorros() {
 
       <div className="tarjeta entre-cuentas">
         <div className="entre-cuentas-cab">
-          <span>Entre todas tus cuentas</span>
+          <span>Entre todos tus ahorros</span>
           <b>{eur(cuentas.total)}</b>
         </div>
         <small>
           Principales {eur(cuentas.principales, { corto: true })} · Recibos no mensuales {eur(cuentas.noMensuales, { corto: true })} · Objetivos {eur(cuentas.objetivos, { corto: true })}
+        </small>
+      </div>
+
+      {/* Ahorros + lo que te queda en la cuenta este mes */}
+      <div className="tarjeta entre-cuentas todo-tu-dinero">
+        <div className="entre-cuentas-cab">
+          <span>Todo tu dinero</span>
+          <b>{eur(cuentas.total + cuenta.disponible)}</b>
+        </div>
+        <small>
+          Ahorros {eur(cuentas.total, { corto: true })} · Cuenta principal {eur(cuenta.disponible, { corto: true })} (te queda en {nombreMes(cuenta.mes)})
         </small>
       </div>
 
