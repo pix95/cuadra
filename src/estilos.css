@@ -1515,6 +1515,27 @@ button.tarjeta:hover {
   background: var(--lima);
   color: #1c2405;
 }
+button.recibo-ok {
+  transition: background 0.15s, transform 0.1s;
+}
+button.recibo-ok:active {
+  transform: scale(0.92);
+}
+.recibo-ok .no {
+  display: none;
+}
+@media (hover: hover) {
+  button.recibo-ok:hover {
+    background: var(--mal);
+    color: #2a0a10;
+  }
+  button.recibo-ok:hover .si {
+    display: none;
+  }
+  button.recibo-ok:hover .no {
+    display: block;
+  }
+}
 
 .fila-partida {
   display: grid;

@@ -1,6 +1,6 @@
 // Ventanas que suben desde abajo: sueldo, partidas, objetivos, avisos, recibos, ajustes…
 import { useMemo, useRef, useState } from "react";
-import { Check, Search, Download, Upload, FileJson, TriangleAlert, Info, CircleAlert, ChevronRight, Archive, ArchiveRestore, Trash2, Plus, CalendarClock, RefreshCw, LogOut, Smartphone } from "lucide-react";
+import { Check, X, Search, Download, Upload, FileJson, TriangleAlert, Info, CircleAlert, ChevronRight, Archive, ArchiveRestore, Trash2, Plus, CalendarClock, RefreshCw, LogOut, Smartphone } from "lucide-react";
 import { exportarCSV } from "../../shared/csv.js";
 import { useDatos, useUI } from "../store.jsx";
 import { Hoja, CampoImporte, Interruptor, Barra, BarraRayas } from "../components/comunes.jsx";
@@ -438,6 +438,27 @@ export function HojaRecibos({ mes, cerrar }) {
       setOcupado(false);
     }
   }
+  // Quitar la marca: se borran los cargos de ese recibo en el mes y el dinero vuelve a lo disponible
+  async function desmarcar(p) {
+    if (ocupado) return;
+    const cargos = movsDeMes(db, mes).filter((m) => m.tipo === "gasto" && m.partidaId === p.id);
+    if (!cargos.length) return;
+    setOcupado(true);
+    try {
+      for (const m of cargos) await acc.borrarMovimiento(m.id);
+      const total = cargos.reduce((s, m) => s + m.importe, 0);
+      ui.avisar(`${p.nombre} desmarcado: vuelven ${eur(total)}`, {
+        texto: "Deshacer",
+        fn: async () => {
+          for (const m of cargos) await acc.guardarMovimiento(m);
+        },
+      });
+    } catch (e) {
+      ui.avisar(e.message, null, "mal");
+    } finally {
+      setOcupado(false);
+    }
+  }
   const ultimo = (p) => {
     const ms = db.movimientos.filter((m) => m.partidaId === p.id).sort((a, b) => b.fecha.localeCompare(a.fecha));
     return ms[0];
@@ -446,7 +467,7 @@ export function HojaRecibos({ mes, cerrar }) {
   return (
     <Hoja
       titulo={`Recibos de ${nombreMes(mes)}`}
-      subtitulo="Marca cada recibo cuando te lo carguen. Se apunta con su importe; si cambia, tócalo luego en el historial."
+      subtitulo="Marca cada recibo cuando te lo carguen y se apunta con su importe. Toca el ✓ para desmarcarlo: el dinero vuelve a lo disponible."
       onCerrar={cerrar}
       pie={
         pendientes.length > 1 ? (
@@ -465,9 +486,10 @@ export function HojaRecibos({ mes, cerrar }) {
               <small>{hecho ? (Math.abs(pagado - p.importe) < 0.01 ? `Cargado ${eur(pagado)}` : `Cargado ${eur(pagado)} (previsto ${eur(p.importe)})`) : `Previsto ${eur(p.importe)}`}</small>
             </span>
             {hecho ? (
-              <span className="recibo-ok" aria-label="Cargado">
-                <Check size={18} />
-              </span>
+              <button type="button" className="recibo-ok" disabled={ocupado} onClick={() => desmarcar(p)} aria-label={`Desmarcar ${p.nombre}`} title="Desmarcar">
+                <Check size={18} className="si" />
+                <X size={18} className="no" />
+              </button>
             ) : (
               <button type="button" className="chip" disabled={ocupado} onClick={() => cargar([p])}>
                 Cargado
@@ -496,9 +518,10 @@ export function HojaRecibos({ mes, cerrar }) {
                     </small>
                   </span>
                   {esteMes > 0 ? (
-                    <span className="recibo-ok" aria-label="Cargado este mes">
-                      <Check size={18} />
-                    </span>
+                    <button type="button" className="recibo-ok" disabled={ocupado} onClick={() => desmarcar(p)} aria-label={`Desmarcar ${p.nombre}`} title="Desmarcar">
+                      <Check size={18} className="si" />
+                      <X size={18} className="no" />
+                    </button>
                   ) : (
                     <button type="button" className="chip" disabled={ocupado} onClick={() => cargar([p])}>
                       Este mes
