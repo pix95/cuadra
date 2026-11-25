@@ -1,4 +1,4 @@
-import { ArrowUpRight, ArrowDownLeft, Banknote, FlaskConical, Bell, Search, ChevronDown, TrendingUp, TrendingDown, Plus, ChevronRight, Pencil } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Banknote, Bell, Search, ChevronDown, TrendingUp, TrendingDown, Plus, ChevronRight, Pencil } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
 import { resumenMes, recibosMes, alertas, ahorradoObjetivo } from "../lib/calculos.js";
 import { eur, nombreMes, mesCorto, saludo, mayus, MESES_CORTOS, pct } from "../lib/formato.js";
@@ -43,14 +43,13 @@ export default function Inicio() {
         </button>
       </header>
 
-      <TarjetaSaldo r={r} mesTxt={mesTxt} />
-
       <div className="acciones">
         <Accion principal icono={<ArrowUpRight size={24} />} texto="Gasto" onClick={() => ui.abrir("apuntar", { tipo: "gasto" })} />
         <Accion icono={<ArrowDownLeft size={24} />} texto="Ingreso" onClick={() => ui.abrir("apuntar", { tipo: "ingreso" })} />
         <Accion icono={<Banknote size={24} />} texto="Sueldo" onClick={() => ui.abrir("sueldo", { mes: ui.mes })} />
-        <Accion icono={<FlaskConical size={22} />} texto="Simular" onClick={() => ui.irA("simulador")} />
       </div>
+
+      <TarjetaSaldo r={r} mesTxt={mesTxt} />
 
       {recibos.length > 0 && <TarjetaRecibos recibos={recibos} mesTxt={mesTxt} />}
 

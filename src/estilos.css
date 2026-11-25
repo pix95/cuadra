@@ -639,9 +639,9 @@ a {
 /* ---------- Acciones rápidas ---------- */
 .acciones {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin: 22px 0 8px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 4px 0 20px;
 }
 .accion {
   display: flex;
@@ -654,7 +654,7 @@ a {
 }
 .accion span {
   width: 100%;
-  max-width: 84px;
+  max-width: 96px;
   aspect-ratio: 1;
   border-radius: 26px;
   display: grid;
