@@ -877,48 +877,69 @@ export function HojaCierre({ mes, importe, fecha, cerrar }) {
   );
 }
 
-// ---------- Lo que ya tenías ahorrado antes de usar la app ----------
+// ---------- Añadir dinero a los ahorros (no sale de ningún mes) ----------
 export function HojaAhorroInicial({ cerrar }) {
   const { db, acc } = useDatos();
   const ui = useUI();
-  const actuales = db.movimientos.filter((m) => m.tipo === "inicial");
-  const valorActual = actuales.reduce((s, m) => s + m.importe, 0);
-  const [txt, setTxt] = useState(valorActual ? aInput(valorActual) : "");
+  const añadidos = [...db.movimientos.filter((m) => m.tipo === "inicial")].sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.creado).localeCompare(String(a.creado)));
+  const [txt, setTxt] = useState("");
   const [error, setError] = useState("");
 
-  async function guardar() {
-    const v = txt.trim() === "" ? 0 : parseImporte(txt);
-    if (!Number.isFinite(v) || v < 0) return setError("Escribe una cantidad, por ejemplo 1500.");
+  async function añadir() {
+    const v = parseImporte(txt);
+    if (!Number.isFinite(v) || v <= 0) return setError("Escribe una cantidad, por ejemplo 1500.");
     try {
-      const [primero, ...resto] = actuales;
-      for (const m of resto) await acc.borrarMovimiento(m.id);
-      if (v === 0) {
-        if (primero) await acc.borrarMovimiento(primero.id);
-      } else if (primero) {
-        await acc.guardarMovimiento({ ...primero, importe: v });
-      } else {
-        await acc.guardarMovimiento({ tipo: "inicial", fecha: hoyISO(), importe: v, concepto: "Ahorros que ya tenía" });
-      }
+      const m = await acc.guardarMovimiento({ tipo: "inicial", fecha: hoyISO(), importe: v, concepto: "" });
       cerrar();
-      ui.avisar(v ? `Ahorros previos: ${eur(v, { corto: true })}` : "Ahorros previos quitados");
+      ui.avisar(`${eur(v, { corto: true })} añadidos a tus ahorros`, { texto: "Deshacer", fn: () => acc.borrarMovimiento(m.id) });
     } catch (e) {
       setError(e.message);
     }
   }
+  async function quitar(m) {
+    await acc.borrarMovimiento(m.id);
+    ui.avisar(`${eur(m.importe, { corto: true })} quitados`, { texto: "Deshacer", fn: () => acc.guardarMovimiento(m) });
+  }
 
   return (
     <Hoja
-      titulo="Ahorros que ya tenías"
-      subtitulo="Lo que tenías ahorrado antes de empezar con Cuadra. Se suma al total ahorrado, pero no cuenta en ningún mes ni en ningún objetivo."
+      titulo="Añadir a tus ahorros"
+      subtitulo="Se suma al total ahorrado sin salir de lo que te queda del mes ni de ningún objetivo."
       onCerrar={cerrar}
       pie={
-        <button type="button" className="btn btn-primario" onClick={guardar}>
-          Guardar
+        <button type="button" className="btn btn-primario" onClick={añadir}>
+          <Plus size={16} /> Añadir
         </button>
       }
     >
-      <CampoImporte grande autoFocus etiqueta="Cantidad" valor={txt} onCambio={setTxt} placeholder="0" />
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          añadir();
+        }}
+      >
+        <CampoImporte grande autoFocus etiqueta="Cantidad" valor={txt} onCambio={setTxt} placeholder="0" />
+      </form>
       {error && <p className="error">{error}</p>}
+      {añadidos.length > 0 && (
+        <>
+          <h3 className="hoja-sub-titulo">Añadido antes</h3>
+          <div className="lista">
+            {añadidos.map((m) => (
+              <div key={m.id} className="recibo">
+                <Ficha icono="hucha" color="#c9f36b" size={36} />
+                <span className="recibo-txt">
+                  <b>{eur(m.importe)}</b>
+                  <small>{fechaCorta(m.fecha)}</small>
+                </span>
+                <button type="button" className="boton-redondo mini" onClick={() => quitar(m)} aria-label={`Quitar ${eur(m.importe)}`}>
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </Hoja>
   );
 }

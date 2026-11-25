@@ -2559,6 +2559,12 @@ button.recibo-ok:active {
 .ahorro-total .saldo-arriba svg {
   opacity: 0.85;
 }
+.boton-mas {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  justify-content: center;
+}
 .ahorro-previo {
   display: inline-flex;
   align-items: center;

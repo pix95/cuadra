@@ -1,5 +1,5 @@
 // Ahorros: lo que tienes apartado y tus objetivos
-import { Plus, PiggyBank, ArrowDownToLine, CalendarClock, Pencil } from "lucide-react";
+import { Plus, ArrowDownToLine, CalendarClock } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
 import { ahorradoObjetivo, ahorroInicial, evolucionAhorro, huchaPeriodicos, primerMes, CADA } from "../lib/calculos.js";
 import { eur, nombreMes, mayus, MESES, MESES_CORTOS, r2, sum, mesActual, moverMes, fechaCorta } from "../lib/formato.js";
@@ -25,9 +25,6 @@ export default function Ahorros() {
         <h1>
           <em>Tus</em> ahorros
         </h1>
-        <button type="button" className="boton-redondo" onClick={() => ui.abrir("objetivo")} aria-label="Nuevo objetivo de ahorro">
-          <Plus size={22} />
-        </button>
       </header>
 
       <PropuestaCierre />
@@ -35,12 +32,11 @@ export default function Ahorros() {
       <section className="saldo ahorro-total">
         <div className="saldo-arriba">
           <span className="saldo-etq">Total ahorrado</span>
-          <PiggyBank size={22} />
+          <button type="button" className="chip-cristal boton-mas" onClick={() => ui.abrir("ahorroInicial")} aria-label="Añadir dinero a tus ahorros" title="Añadir dinero">
+            <Plus size={20} />
+          </button>
         </div>
         <Cifra valor={total} className="saldo-cifra" />
-        <button type="button" className="ahorro-previo" onClick={() => ui.abrir("ahorroInicial")}>
-          {previo ? `Incluye ${eur(previo, { corto: true })} que ya tenías ahorrados` : "¿Ya tenías algo ahorrado? Añádelo"} <Pencil size={12} />
-        </button>
         <div className="saldo-pill-fila">
           <span className={`pill ${esteMes > 0 ? "pill-lima" : ""}`}>{eur(esteMes, { signo: true, corto: true })}</span>
           <span className="saldo-nota">apartado en {nombreMes(ui.mes)}</span>
@@ -63,8 +59,6 @@ export default function Ahorros() {
       )}
 
       <Evolucion />
-
-      <Hucha />
 
       <section className="seccion">
         <div className="seccion-cab">
@@ -110,6 +104,9 @@ export default function Ahorros() {
           </button>
         </div>
       </section>
+
+      <Hucha />
+
     </div>
   );
 }
