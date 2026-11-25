@@ -11,7 +11,7 @@ import Simulador from "./pantallas/Simulador.jsx";
 import Ahorros from "./pantallas/Ahorros.jsx";
 import Apuntar from "./pantallas/Apuntar.jsx";
 import Acceso from "./pantallas/Acceso.jsx";
-import { HojaSueldo, HojaPartida, HojaObjetivo, HojaAlertas, HojaRecibos, HojaAjustes, HojaElegirPartida, HojaMeses, HojaConfirmar } from "./pantallas/Hojas.jsx";
+import { HojaCierre, HojaSueldo, HojaPartida, HojaObjetivo, HojaAlertas, HojaRecibos, HojaAjustes, HojaElegirPartida, HojaMeses, HojaConfirmar } from "./pantallas/Hojas.jsx";
 
 const PANTALLAS = { inicio: Inicio, movimientos: Movimientos, analisis: Analisis, presupuesto: Presupuesto, ahorros: Ahorros, simulador: Simulador };
 const CAPAS = {
@@ -25,6 +25,7 @@ const CAPAS = {
   elegirPartida: HojaElegirPartida,
   meses: HojaMeses,
   confirmar: HojaConfirmar,
+  cierre: HojaCierre,
 };
 
 const PESTAÑAS = [

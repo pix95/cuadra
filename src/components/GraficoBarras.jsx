@@ -3,7 +3,7 @@ import { eur } from "../lib/formato.js";
 
 // Gráfico de barras con la media en línea discontinua y una barra destacada.
 // datos: [{ clave, valor, futuro, etiqueta, titulo }]
-export function GraficoBarras({ datos, media, etiquetas, alto = 150 }) {
+export function GraficoBarras({ datos, media, etiquetas, alto = 150, vacio = "Sin gastos en este periodo" }) {
   const maxIdx = datos.reduce((best, d, i) => (d.valor > (datos[best]?.valor ?? -Infinity) ? i : best), 0);
   const [sel, setSel] = useState(maxIdx);
   const firma = datos.map((d) => d.clave).join();
@@ -47,7 +47,7 @@ export function GraficoBarras({ datos, media, etiquetas, alto = 150 }) {
           <span key={d.clave}>{etiquetas(d, i)}</span>
         ))}
       </div>
-      {!hayDatos && elegido && <p className="grafico-vacio">Sin gastos en este periodo</p>}
+      {!hayDatos && elegido && <p className="grafico-vacio">{vacio}</p>}
     </div>
   );
 }

@@ -1,10 +1,12 @@
 // Ahorros: lo que tienes apartado y tus objetivos
-import { Plus, PiggyBank, ArrowDownToLine } from "lucide-react";
+import { Plus, PiggyBank, ArrowDownToLine, CalendarClock } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { ahorradoObjetivo } from "../lib/calculos.js";
-import { eur, nombreMes, mayus, MESES_CORTOS, r2, sum } from "../lib/formato.js";
+import { ahorradoObjetivo, evolucionAhorro, huchaPeriodicos, primerMes, CADA } from "../lib/calculos.js";
+import { eur, nombreMes, mayus, MESES, MESES_CORTOS, r2, sum, mesActual, moverMes, fechaCorta } from "../lib/formato.js";
 import { Cifra, BarraRayas } from "../components/comunes.jsx";
-import { Ficha } from "../lib/iconos.jsx";
+import { Ficha, colorCategoria } from "../lib/iconos.jsx";
+import { GraficoBarras } from "../components/GraficoBarras.jsx";
+import { PropuestaCierre } from "../components/PropuestaCierre.jsx";
 
 export default function Ahorros() {
   const { db } = useDatos();
@@ -25,6 +27,8 @@ export default function Ahorros() {
           <Plus size={22} />
         </button>
       </header>
+
+      <PropuestaCierre />
 
       <section className="saldo ahorro-total">
         <div className="saldo-arriba">
@@ -52,6 +56,10 @@ export default function Ahorros() {
           <ArrowDownToLine size={18} /> Apartar dinero
         </button>
       )}
+
+      <Evolucion />
+
+      <Hucha />
 
       <section className="seccion">
         <div className="seccion-cab">
@@ -98,5 +106,88 @@ export default function Ahorros() {
         </div>
       </section>
     </div>
+  );
+}
+
+// Cuánto has apartado cada mes y qué parte del sueldo es
+function Evolucion() {
+  const { db } = useDatos();
+  const act = mesActual();
+  let n = 1;
+  for (let m = primerMes(db); m < act && n < 12; m = moverMes(m, 1)) n++;
+  n = Math.max(n, 6);
+  const serie = evolucionAhorro(db, act, n);
+  const conDatos = serie.filter((x) => x.entradas > 0 || x.ahorrado !== 0);
+  const total = r2(sum(conDatos, (x) => x.ahorrado));
+  const media = conDatos.length ? r2(total / conDatos.length) : 0;
+  const entradas = sum(conDatos, (x) => x.entradas);
+  const pctMedio = entradas > 0 ? Math.round((total / entradas) * 100) : null;
+  const datos = serie.map((x) => ({
+    clave: x.mes,
+    valor: Math.max(0, x.ahorrado),
+    futuro: false,
+    titulo: `${mayus(MESES[Number(x.mes.slice(5)) - 1])}${x.pct != null ? ` · ${Math.round(x.pct)} %` : ""}`,
+  }));
+  return (
+    <section className="tarjeta">
+      <div className="tarjeta-cab">
+        <h2>Ahorro de cada mes</h2>
+        {media > 0 && <span className="tenue">Media {eur(media, { corto: true })}/mes</span>}
+      </div>
+      <p className="ayuda tenue grafico-nota">
+        {total > 0
+          ? `Lo que has apartado cada mes${pctMedio != null ? `: de media, el ${pctMedio} % de lo que entra` : ""}.`
+          : "Aquí verás lo que apartas cada mes y qué parte de tu sueldo supone."}
+      </p>
+      <GraficoBarras datos={datos} media={media} alto={120} vacio="Todavía no has apartado nada" etiquetas={(d) => mayus(MESES_CORTOS[Number(d.clave.slice(5)) - 1]).slice(0, 3)} />
+    </section>
+  );
+}
+
+// Hucha para IBI, comunidad, agua, seguro del coche…
+function Hucha() {
+  const { db } = useDatos();
+  const h = huchaPeriodicos(db);
+  if (!h.porPartida.length) return null;
+  const bien = h.saldo >= 0;
+  return (
+    <section className="seccion">
+      <div className="seccion-cab">
+        <h2>Hucha de pagos periódicos</h2>
+      </div>
+      <div className="tarjeta hucha">
+        <div className="hucha-cab">
+          <span className="cierre-icono hucha-icono">
+            <CalendarClock size={20} />
+          </span>
+          <span>
+            <small>{bien ? "Tienes en la hucha" : "Te falta en la hucha"}</small>
+            <Cifra valor={Math.abs(h.saldo)} className={`cifra-l ${bien ? "" : "negativo"}`} />
+          </span>
+        </div>
+        <p className="ayuda">
+          Cada mes se apartan {eur(h.alMes)} (desde {nombreMes(h.inicio, { año: true })}: {eur(h.apartado, { corto: true })}) y se gastan cuando llegan los recibos ({eur(h.pagado, { corto: true })} pagados).
+          {!bien && " Has pagado más de lo apartado: es normal si un recibo grande llegó al poco de empezar."}
+        </p>
+        <div className="lista">
+          {h.porPartida.map(({ partida: p, pagadoAño, anual, ultimo }) => (
+            <div key={p.id} className="fila-partida hucha-fila">
+              <Ficha icono={p.icono} color={colorCategoria(p.categoria)} size={36} />
+              <span className="fila-partida-txt">
+                <b>{p.nombre}</b>
+                <small>
+                  {eur(p.importe, { corto: true })} {CADA[p.frecuencia]}
+                  {ultimo ? ` · último ${fechaCorta(ultimo)}` : ""}
+                </small>
+              </span>
+              <span className="fila-partida-imp">
+                {eur(pagadoAño, { corto: true })}
+                <small>de {eur(anual, { corto: true })} este año</small>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }

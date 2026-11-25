@@ -820,3 +820,59 @@ export function HojaConfirmar({ titulo, texto, boton = "Confirmar", peligro = fa
   );
 }
 
+
+// ---------- Apartar lo que sobró el mes pasado ----------
+export function HojaCierre({ mes, importe, fecha, cerrar }) {
+  const { db, acc } = useDatos();
+  const ui = useUI();
+  const [objetivoId, setObjetivoId] = useState(db.objetivos[0]?.id || "");
+  const [txt, setTxt] = useState(aInput(importe));
+  const [error, setError] = useState("");
+  const valor = parseImporte(txt);
+
+  async function apartar() {
+    if (!objetivoId) return setError("Elige un objetivo.");
+    if (!Number.isFinite(valor) || valor <= 0) return setError("Escribe un importe mayor que cero.");
+    try {
+      const m = await acc.guardarMovimiento({ tipo: "ahorro", fecha, importe: valor, objetivoId, concepto: `Sobrante de ${nombreMes(mes)}` });
+      cerrar();
+      const o = db.objetivos.find((x) => x.id === objetivoId);
+      ui.avisar(`${eur(valor)} apartados para ${o?.nombre}`, { texto: "Deshacer", fn: () => acc.borrarMovimiento(m.id) });
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  return (
+    <Hoja
+      titulo={`Cierre de ${nombreMes(mes)}`}
+      subtitulo={`Te sobraron ${eur(importe)}. Se apunta como ahorro del último día de ${nombreMes(mes)}, así ese mes queda cuadrado.`}
+      onCerrar={cerrar}
+      pie={
+        <button type="button" className="btn btn-primario" onClick={apartar}>
+          Apartar {Number.isFinite(valor) && valor > 0 ? eur(valor, { corto: true }) : ""}
+        </button>
+      }
+    >
+      <CampoImporte grande etiqueta="Cuánto apartas" valor={txt} onCambio={setTxt} />
+      <div className="campo">
+        <span>Para qué objetivo</span>
+        <div className="lista">
+          {db.objetivos.map((o) => (
+            <button key={o.id} type="button" className={`fila-partida elegible ${o.id === objetivoId ? "on" : ""}`} onClick={() => setObjetivoId(o.id)} aria-pressed={o.id === objetivoId}>
+              <Ficha icono={o.icono} color="#f6a57c" size={40} />
+              <span className="fila-partida-txt">
+                <b>{o.nombre}</b>
+                <small>
+                  {eur(ahorradoObjetivo(db, o.id), { corto: true })} ahorrados{o.meta > 0 ? ` de ${eur(o.meta, { corto: true })}` : ""}
+                </small>
+              </span>
+              {o.id === objetivoId && <Check size={18} className="positivo" />}
+            </button>
+          ))}
+        </div>
+      </div>
+      {error && <p className="error">{error}</p>}
+    </Hoja>
+  );
+}

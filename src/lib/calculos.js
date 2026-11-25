@@ -271,3 +271,56 @@ export function resultadoSimulacion(s) {
 }
 
 export { iso };
+
+// ---------- Ahorros ----------
+const ultimoDia = (mes) => `${mes}-${String(diasEnMes(mes)).padStart(2, "0")}`;
+
+// Primer mes con datos (sueldo o movimientos)
+export function primerMes(db, hoy = hoyISO()) {
+  const meses = [...Object.keys(db.meses), ...db.movimientos.map((m) => m.fecha.slice(0, 7))].filter((m) => m <= hoy.slice(0, 7)).sort();
+  return meses[0] || hoy.slice(0, 7);
+}
+
+// Si el mes pasado te sobró dinero, propone apartarlo
+export function propuestaCierre(db, hoy = hoyISO()) {
+  const mes = moverMes(hoy.slice(0, 7), -1);
+  const r = resumenMes(db, mes, hoy);
+  if (r.sueldo == null || r.disponible < 1) return null;
+  return { mes, importe: r.disponible, fecha: ultimoDia(mes) };
+}
+
+// Lo apartado cada mes (últimos n meses hasta "hasta") y qué parte del sueldo supone
+export function evolucionAhorro(db, hasta, n = 12) {
+  const out = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const mes = moverMes(hasta, -i);
+    const movs = movsDeMes(db, mes);
+    const ahorrado = r2(sum(movs.filter((m) => m.tipo === "ahorro"), (m) => m.importe));
+    const entradas = r2((db.meses[mes]?.sueldo ?? 0) + sum(movs.filter((m) => m.tipo === "ingreso"), (m) => m.importe));
+    out.push({ mes, ahorrado, entradas, pct: entradas > 0 ? (ahorrado / entradas) * 100 : null });
+  }
+  return out;
+}
+
+// Hucha de pagos periódicos: cada mes se "aparta" su parte proporcional y
+// se gasta cuando llegan los recibos. Cuenta desde el primer mes con datos.
+export function huchaPeriodicos(db, hoy = hoyISO()) {
+  const inicio = primerMes(db, hoy);
+  const actual = hoy.slice(0, 7);
+  let meses = 0;
+  for (let m = inicio; m <= actual; m = moverMes(m, 1)) meses++;
+  const periodicas = ordenar(db.partidas.filter((p) => !esMensual(p) && (p.activa || db.movimientos.some((m) => m.partidaId === p.id))));
+  const ids = new Set(periodicas.map((p) => p.id));
+  const pagos = db.movimientos.filter((m) => m.tipo === "gasto" && ids.has(m.partidaId) && m.fecha.slice(0, 7) >= inicio && m.fecha.slice(0, 7) <= actual);
+  const alMes = r2(sum(periodicas.filter((p) => p.activa), prorrateo));
+  const apartado = r2(alMes * meses);
+  const pagado = r2(sum(pagos, (m) => m.importe));
+  const año = actual.slice(0, 4);
+  const porPartida = periodicas.filter((p) => (p.activa && p.importe > 0) || pagos.some((m) => m.partidaId === p.id)).map((p) => ({
+    partida: p,
+    pagadoAño: r2(sum(pagos.filter((m) => m.partidaId === p.id && m.fecha.startsWith(año)), (m) => m.importe)),
+    anual: p.activa ? r2(anual(p)) : 0,
+    ultimo: pagos.filter((m) => m.partidaId === p.id).sort((a, b) => b.fecha.localeCompare(a.fecha))[0]?.fecha || null,
+  }));
+  return { inicio, meses, alMes, apartado, pagado, saldo: r2(apartado - pagado), porPartida };
+}

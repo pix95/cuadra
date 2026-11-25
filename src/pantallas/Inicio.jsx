@@ -5,6 +5,7 @@ import { eur, nombreMes, mesCorto, saludo, pct } from "../lib/formato.js";
 import { Cifra, Sparkline, Vacio } from "../components/comunes.jsx";
 import { Ficha } from "../lib/iconos.jsx";
 import { ICONO } from "../config.js";
+import { PropuestaCierre } from "../components/PropuestaCierre.jsx";
 import { FilaMovimiento, ordenarMovs } from "../components/FilaMovimiento.jsx";
 
 export default function Inicio() {
@@ -50,6 +51,8 @@ export default function Inicio() {
       </div>
 
       <TarjetaSaldo r={r} mesTxt={mesTxt} />
+
+      <PropuestaCierre />
 
       {recibos.length > 0 && <TarjetaRecibos recibos={recibos} mesTxt={mesTxt} />}
 

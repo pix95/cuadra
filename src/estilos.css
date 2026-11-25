@@ -2513,6 +2513,49 @@ button.recibo-ok:active {
 }
 
 /* ---------- Ahorros ---------- */
+.cierre {
+  border-color: rgba(214, 247, 114, 0.35);
+  background: linear-gradient(135deg, rgba(214, 247, 114, 0.1), rgba(214, 247, 114, 0.02)), var(--tarjeta);
+}
+.cierre-cab {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.cierre-cab > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+.cierre-cab b {
+  font-size: 16.5px;
+}
+.cierre-cab small {
+  color: var(--texto-2);
+  font-size: 14px;
+}
+.cierre-icono {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  background: var(--lima-fondo);
+  color: var(--lima);
+}
+.cierre .fila-botones {
+  margin: 14px 0 0;
+}
+.fila-partida.elegible {
+  border: 1px solid transparent;
+}
+.fila-partida.elegible.on {
+  border-color: rgba(214, 247, 114, 0.4);
+  background: var(--lima-fondo);
+}
+.cierre + .ahorro-total {
+  margin-top: 14px;
+}
 .ahorro-total .saldo-arriba svg {
   opacity: 0.85;
 }
@@ -2533,6 +2576,30 @@ button.recibo-ok:active {
 .ahorro-apartar {
   width: 100%;
   margin-top: 16px;
+}
+.hucha-cab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.hucha-cab > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+.hucha-cab small {
+  color: var(--texto-2);
+  font-size: 14px;
+}
+.hucha-icono {
+  background: rgba(246, 165, 124, 0.14);
+  color: var(--melocoton);
+}
+.hucha .lista {
+  margin-top: 10px;
+}
+.hucha-fila {
+  cursor: default;
 }
 .lista-objetivos {
   display: flex;
