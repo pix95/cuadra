@@ -109,13 +109,17 @@ export default function Analisis() {
 
       <section className="tarjeta">
         <div className="tarjeta-cab">
-          <h2>{tipo === "año" ? "Gasto por mes" : "Gasto diario"}</h2>
+          <h2>{tipo === "año" ? "Gasto variable por mes" : "Gasto variable diario"}</h2>
           {a.media > 0 && (
-            <span className="tenue">
+            <span className={a.mediaPrevista > 0 && a.media > a.mediaPrevista ? "negativo" : "tenue"}>
               Media {eur(a.media, { corto: true })}/{tipo === "año" ? "mes" : "día"}
             </span>
           )}
         </div>
+        <p className="ayuda tenue grafico-nota">
+          Sin recibos (hipoteca, luz, suscripciones…).
+          {a.mediaPrevista > 0 && ` Tu presupuesto variable da para ${eur(a.mediaPrevista, { corto: true })}/${tipo === "año" ? "mes" : "día"}.`}
+        </p>
         <GraficoBarras datos={datos} media={a.media} etiquetas={etiquetas} />
       </section>
 

@@ -2108,6 +2108,10 @@ button.recibo-ok:active {
   position: relative;
   padding-top: 38px;
 }
+.grafico-nota {
+  margin: -8px 0 4px;
+  font-size: 13px;
+}
 .grafico-zona {
   position: relative;
   height: var(--alto);

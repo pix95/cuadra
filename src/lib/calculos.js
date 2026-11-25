@@ -204,23 +204,28 @@ export function analisisPeriodo(db, tipo, ancla, hoy = hoyISO()) {
   const pres = presupuestoMensual(db.partidas);
   const presupuesto = tipo === "mes" ? pres.total : tipo === "año" ? pres.anual : r2((pres.total * 12) / 365 * 7);
 
-  // Barras
+  // Barras y media: solo el gasto variable (los recibos caen de golpe y lo deforman)
+  const esRecibo = new Set(db.partidas.filter((p) => p.recibo).map((p) => p.id));
+  const variables = movs.filter((m) => !esRecibo.has(m.partidaId));
+  const totalVariable = r2(sum(variables, (m) => m.importe));
   let barras = [];
   if (tipo === "año") {
     const y = inicio.slice(0, 4);
     for (let i = 1; i <= 12; i++) {
       const m = `${y}-${String(i).padStart(2, "0")}`;
-      barras.push({ clave: m, valor: r2(sum(movs.filter((x) => x.fecha.startsWith(m)), (x) => x.importe)), futuro: m > hoy.slice(0, 7) });
+      barras.push({ clave: m, valor: r2(sum(variables.filter((x) => x.fecha.startsWith(m)), (x) => x.importe)), futuro: m > hoy.slice(0, 7) });
     }
   } else {
     const n = diasEntre(inicio, fin) + 1;
     for (let i = 0; i < n; i++) {
       const f = sumarDias(inicio, i);
-      barras.push({ clave: f, valor: r2(sum(movs.filter((x) => x.fecha === f), (x) => x.importe)), futuro: f > hoy });
+      barras.push({ clave: f, valor: r2(sum(variables.filter((x) => x.fecha === f), (x) => x.importe)), futuro: f > hoy });
     }
   }
   const transcurridas = barras.filter((b) => !b.futuro).length || barras.length;
-  const media = futuro ? 0 : r2(total / transcurridas);
+  const media = futuro ? 0 : r2(totalVariable / transcurridas);
+  // Lo que permite el presupuesto de gasto variable por día (o por mes en la vista anual)
+  const mediaPrevista = r2(tipo === "año" ? pres.variable : (pres.variable * 12) / 365);
 
   // Categorías
   const porId = new Map(db.partidas.map((p) => [p.id, p]));
@@ -239,7 +244,7 @@ export function analisisPeriodo(db, tipo, ancla, hoy = hoyISO()) {
     .sort((a, b) => b.total - a.total);
 
   return {
-    inicio, fin, total, totalAnt, enCurso, futuro, presupuesto, barras, media, categorias, movs,
+    inicio, fin, total, totalAnt, enCurso, futuro, presupuesto, barras, media, mediaPrevista, totalVariable, categorias, movs,
     variacion: totalAnt > 0 ? ((total - totalAnt) / totalAnt) * 100 : null,
     usoPct: presupuesto > 0 ? (total / presupuesto) * 100 : 0,
   };
