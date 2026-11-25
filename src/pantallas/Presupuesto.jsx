@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings2, Plus, FlaskConical, ChevronDown, Banknote, PiggyBank } from "lucide-react";
+import { Settings2, Plus, ChevronDown, Banknote, PiggyBank } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
 import { Cifra } from "../components/comunes.jsx";
 import { Ficha, colorCategoria } from "../lib/iconos.jsx";
@@ -84,9 +84,6 @@ export default function Presupuesto() {
       <div className="fila-botones">
         <button type="button" className="btn btn-primario" onClick={() => ui.abrir("partida")}>
           <Plus size={18} /> Nueva partida
-        </button>
-        <button type="button" className="btn" onClick={() => ui.irA("simulador")}>
-          <FlaskConical size={18} /> Simular cambios
         </button>
       </div>
 
