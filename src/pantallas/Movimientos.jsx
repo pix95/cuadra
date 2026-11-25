@@ -20,7 +20,9 @@ export default function Movimientos() {
   const lista = useMemo(() => {
     const t = norm(q.trim());
     // Al buscar se mira en todos los meses
-    let ms = buscando ? db.movimientos : db.movimientos.filter((m) => m.fecha.startsWith(todoElAño ? ui.mes.slice(0, 4) : ui.mes));
+    // Lo que ya tenías ahorrado antes de usar la app se ve en Ahorros, no aquí
+    const propios = db.movimientos.filter((m) => m.tipo !== "inicial");
+    let ms = buscando ? propios : propios.filter((m) => m.fecha.startsWith(todoElAño ? ui.mes.slice(0, 4) : ui.mes));
     if (tipo !== "todos") ms = ms.filter((m) => m.tipo === tipo);
     if (partida) ms = ms.filter((m) => m.partidaId === partida);
     if (t) {

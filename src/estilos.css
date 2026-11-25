@@ -2559,6 +2559,17 @@ button.recibo-ok:active {
 .ahorro-total .saldo-arriba svg {
   opacity: 0.85;
 }
+.ahorro-previo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: -4px 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: underline dotted rgba(255, 255, 255, 0.4);
+  text-underline-offset: 4px;
+}
 .ahorro-total-pie {
   display: flex;
   justify-content: space-between;

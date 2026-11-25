@@ -122,7 +122,7 @@ function validarPartida(b, base = {}) {
 function validarMovimiento(b, d, base = {}) {
   const m = { ...base };
   const tipo = b.tipo ?? base.tipo ?? "gasto";
-  if (!["gasto", "ingreso", "ahorro"].includes(tipo)) falla("Tipo de movimiento no válido.");
+  if (!["gasto", "ingreso", "ahorro", "inicial"].includes(tipo)) falla("Tipo de movimiento no válido.");
   m.tipo = tipo;
   if ("fecha" in b || !base.id) {
     if (!esFecha(b.fecha)) falla("La fecha no es válida.");

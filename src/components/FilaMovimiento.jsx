@@ -6,6 +6,7 @@ const ESTADO = {
   gasto: (m) => (m.importe < 0 ? "Devolución" : "Gasto"),
   ingreso: () => "Ingreso",
   ahorro: (m) => (m.importe < 0 ? "Retirada" : "Ahorro"),
+  inicial: () => "Ahorro previo",
 };
 
 export function describirMovimiento(m, db) {

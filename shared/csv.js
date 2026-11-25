@@ -3,7 +3,7 @@
 // anterior de Cuadra: Fecha;Importe;Partida;Categoría;Concepto.
 import { uid, r2, normalizarPartida, ErrorDatos } from "./modelo.js";
 
-const TIPOS = { gasto: "Gasto", ingreso: "Ingreso", ahorro: "Ahorro" };
+const TIPOS = { gasto: "Gasto", ingreso: "Ingreso", ahorro: "Ahorro", inicial: "Ahorro previo" };
 
 // Nombres antiguos que ahora tienen otro nombre en el presupuesto ({ "antiguo": "nuevo" })
 const ALIAS = {};
@@ -125,7 +125,7 @@ export function importarCSV(d, csv) {
     const fecha = leerFecha(f[iFecha]);
     const importe = leerImporte(f[iImporte]);
     const tipoTxt = iTipo >= 0 ? norm(f[iTipo]) : "gasto";
-    const tipo = tipoTxt.startsWith("ingr") ? "ingreso" : tipoTxt.startsWith("ahorr") ? "ahorro" : "gasto";
+    const tipo = tipoTxt.startsWith("ingr") ? "ingreso" : tipoTxt.startsWith("ahorro previo") ? "inicial" : tipoTxt.startsWith("ahorr") ? "ahorro" : "gasto";
     const concepto = iConcepto >= 0 ? String(f[iConcepto] ?? "").trim().slice(0, 80) : "";
     if (!fecha || !Number.isFinite(importe) || importe === 0) {
       resumen.errores++;

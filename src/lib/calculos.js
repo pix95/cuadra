@@ -39,7 +39,9 @@ export function ordenCategorias(partidas) {
   return out;
 }
 
-export const movsDeMes = (db, mes) => db.movimientos.filter((m) => m.fecha.startsWith(mes));
+// "inicial" es lo que ya tenías ahorrado antes de usar la app: no pertenece a ningún mes
+export const movsDeMes = (db, mes) => db.movimientos.filter((m) => m.tipo !== "inicial" && m.fecha.startsWith(mes));
+export const ahorroInicial = (db) => db.movimientos.filter((m) => m.tipo === "inicial");
 
 export function gastosPorPartida(movs, partidas) {
   const ids = new Set(partidas.map((p) => p.id));
@@ -277,7 +279,7 @@ const ultimoDia = (mes) => `${mes}-${String(diasEnMes(mes)).padStart(2, "0")}`;
 
 // Primer mes con datos (sueldo o movimientos)
 export function primerMes(db, hoy = hoyISO()) {
-  const meses = [...Object.keys(db.meses), ...db.movimientos.map((m) => m.fecha.slice(0, 7))].filter((m) => m <= hoy.slice(0, 7)).sort();
+  const meses = [...Object.keys(db.meses), ...db.movimientos.filter((m) => m.tipo !== "inicial").map((m) => m.fecha.slice(0, 7))].filter((m) => m <= hoy.slice(0, 7)).sort();
   return meses[0] || hoy.slice(0, 7);
 }
 

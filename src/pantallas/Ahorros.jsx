@@ -1,7 +1,7 @@
 // Ahorros: lo que tienes apartado y tus objetivos
-import { Plus, PiggyBank, ArrowDownToLine, CalendarClock } from "lucide-react";
+import { Plus, PiggyBank, ArrowDownToLine, CalendarClock, Pencil } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { ahorradoObjetivo, evolucionAhorro, huchaPeriodicos, primerMes, CADA } from "../lib/calculos.js";
+import { ahorradoObjetivo, ahorroInicial, evolucionAhorro, huchaPeriodicos, primerMes, CADA } from "../lib/calculos.js";
 import { eur, nombreMes, mayus, MESES, MESES_CORTOS, r2, sum, mesActual, moverMes, fechaCorta } from "../lib/formato.js";
 import { Cifra, BarraRayas } from "../components/comunes.jsx";
 import { Ficha, colorCategoria } from "../lib/iconos.jsx";
@@ -12,7 +12,9 @@ export default function Ahorros() {
   const { db } = useDatos();
   const ui = useUI();
   const aportes = db.movimientos.filter((m) => m.tipo === "ahorro");
-  const total = r2(sum(aportes, (m) => m.importe));
+  const previo = r2(sum(ahorroInicial(db), (m) => m.importe));
+  const enObjetivos = r2(sum(aportes, (m) => m.importe));
+  const total = r2(enObjetivos + previo);
   const esteMes = r2(sum(aportes.filter((m) => m.fecha.startsWith(ui.mes)), (m) => m.importe));
   const metas = r2(sum(db.objetivos, (o) => o.meta));
   const conMeta = db.objetivos.filter((o) => o.meta > 0);
@@ -36,6 +38,9 @@ export default function Ahorros() {
           <PiggyBank size={22} />
         </div>
         <Cifra valor={total} className="saldo-cifra" />
+        <button type="button" className="ahorro-previo" onClick={() => ui.abrir("ahorroInicial")}>
+          {previo ? `Incluye ${eur(previo, { corto: true })} que ya tenías ahorrados` : "¿Ya tenías algo ahorrado? Añádelo"} <Pencil size={12} />
+        </button>
         <div className="saldo-pill-fila">
           <span className={`pill ${esteMes > 0 ? "pill-lima" : ""}`}>{eur(esteMes, { signo: true, corto: true })}</span>
           <span className="saldo-nota">apartado en {nombreMes(ui.mes)}</span>
@@ -45,10 +50,10 @@ export default function Ahorros() {
             <span>
               {db.objetivos.length} {db.objetivos.length === 1 ? "objetivo" : "objetivos"} · metas {eur(metas, { corto: true })}
             </span>
-            <span>{Math.min(100, Math.round((total / metas) * 100))} % conseguido</span>
+            <span>{Math.min(100, Math.round((enObjetivos / metas) * 100))} % conseguido</span>
           </div>
         )}
-        {conMeta.length > 0 && <BarraRayas pct={(total / metas) * 100} />}
+        {conMeta.length > 0 && <BarraRayas pct={(enObjetivos / metas) * 100} />}
       </section>
 
       {db.objetivos.length > 0 && (

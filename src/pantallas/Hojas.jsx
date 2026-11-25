@@ -876,3 +876,49 @@ export function HojaCierre({ mes, importe, fecha, cerrar }) {
     </Hoja>
   );
 }
+
+// ---------- Lo que ya tenías ahorrado antes de usar la app ----------
+export function HojaAhorroInicial({ cerrar }) {
+  const { db, acc } = useDatos();
+  const ui = useUI();
+  const actuales = db.movimientos.filter((m) => m.tipo === "inicial");
+  const valorActual = actuales.reduce((s, m) => s + m.importe, 0);
+  const [txt, setTxt] = useState(valorActual ? aInput(valorActual) : "");
+  const [error, setError] = useState("");
+
+  async function guardar() {
+    const v = txt.trim() === "" ? 0 : parseImporte(txt);
+    if (!Number.isFinite(v) || v < 0) return setError("Escribe una cantidad, por ejemplo 1500.");
+    try {
+      const [primero, ...resto] = actuales;
+      for (const m of resto) await acc.borrarMovimiento(m.id);
+      if (v === 0) {
+        if (primero) await acc.borrarMovimiento(primero.id);
+      } else if (primero) {
+        await acc.guardarMovimiento({ ...primero, importe: v });
+      } else {
+        await acc.guardarMovimiento({ tipo: "inicial", fecha: hoyISO(), importe: v, concepto: "Ahorros que ya tenía" });
+      }
+      cerrar();
+      ui.avisar(v ? `Ahorros previos: ${eur(v, { corto: true })}` : "Ahorros previos quitados");
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  return (
+    <Hoja
+      titulo="Ahorros que ya tenías"
+      subtitulo="Lo que tenías ahorrado antes de empezar con Cuadra. Se suma al total ahorrado, pero no cuenta en ningún mes ni en ningún objetivo."
+      onCerrar={cerrar}
+      pie={
+        <button type="button" className="btn btn-primario" onClick={guardar}>
+          Guardar
+        </button>
+      }
+    >
+      <CampoImporte grande autoFocus etiqueta="Cantidad" valor={txt} onCambio={setTxt} placeholder="0" />
+      {error && <p className="error">{error}</p>}
+    </Hoja>
+  );
+}
