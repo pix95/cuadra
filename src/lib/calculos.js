@@ -1,7 +1,7 @@
 // Cálculos del presupuesto. Todo es puro: recibe los datos y devuelve cifras.
 import { r2, sum, diasEnMes, fechaDe, iso, sumarDias, moverMes, hoyISO } from "./formato.js";
-import { OBJETIVO_FIJO, objetivosConFijo } from "../../shared/modelo.js";
-export { OBJETIVO_FIJO, objetivosConFijo };
+import { OBJETIVO_FIJO, AHORRO_PRINCIPAL, objetivosConFijo } from "../../shared/modelo.js";
+export { OBJETIVO_FIJO, AHORRO_PRINCIPAL, objetivosConFijo };
 
 export const FRECUENCIAS = ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual"];
 export const VECES = { Mensual: 12, Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1 };
@@ -131,6 +131,7 @@ export function acumuladoAño(db, mes) {
 
 export function ahorradoObjetivo(db, id) {
   if (id === OBJETIVO_FIJO.id) return huchaPeriodicos(db).saldo;
+  if (id === AHORRO_PRINCIPAL.id) return ahorrosPrincipales(db);
   return r2(sum(db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === id), (m) => m.importe));
 }
 
@@ -319,4 +320,15 @@ export function huchaPeriodicos(db) {
   const saldo = r2(sum(aportes, (m) => m.importe));
   const alMes = r2(sum(db.partidas.filter((p) => p.activa && !esMensual(p)), prorrateo));
   return { saldo, alMes };
+}
+
+// Ahorros principales: lo que ya tenías + lo que apartas (también a tus
+// objetivos). No incluye "Pagos no mensuales", que es una cuenta aparte.
+export function ahorrosPrincipales(db) {
+  return r2(
+    sum(
+      db.movimientos.filter((m) => m.tipo === "inicial" || (m.tipo === "ahorro" && m.objetivoId !== OBJETIVO_FIJO.id)),
+      (m) => m.importe
+    )
+  );
 }

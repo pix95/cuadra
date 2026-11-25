@@ -26,7 +26,16 @@ export const OBJETIVO_FIJO = {
   icono: "calendario",
   fijo: true,
 };
-export const objetivosConFijo = (d) => [OBJETIVO_FIJO, ...(d.objetivos || [])];
+// Cuenta de ahorro principal: lo que apartas sin un objetivo concreto
+export const AHORRO_PRINCIPAL = {
+  id: "00000000-0000-4000-8000-0000000000ab",
+  nombre: "Ahorros principales",
+  meta: 0,
+  fecha: null,
+  icono: "hucha",
+  fijo: true,
+};
+export const objetivosConFijo = (d) => [AHORRO_PRINCIPAL, OBJETIVO_FIJO, ...(d.objetivos || [])];
 
 export class ErrorDatos extends Error {
   constructor(msg, status = 400) {

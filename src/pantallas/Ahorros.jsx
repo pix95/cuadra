@@ -1,7 +1,7 @@
 // Ahorros: lo que tienes apartado y tus objetivos
 import { Plus, ArrowDownToLine, CalendarClock } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { ahorradoObjetivo, ahorroInicial, evolucionAhorro, huchaPeriodicos, primerMes, OBJETIVO_FIJO } from "../lib/calculos.js";
+import { ahorradoObjetivo, ahorrosPrincipales, evolucionAhorro, huchaPeriodicos, primerMes, OBJETIVO_FIJO, AHORRO_PRINCIPAL } from "../lib/calculos.js";
 import { eur, nombreMes, mayus, MESES, MESES_CORTOS, r2, sum, mesActual, moverMes } from "../lib/formato.js";
 import { Cifra, BarraRayas, Hoja } from "../components/comunes.jsx";
 import { Ficha } from "../lib/iconos.jsx";
@@ -12,10 +12,11 @@ export default function Ahorros() {
   const { db } = useDatos();
   const ui = useUI();
   const aportes = db.movimientos.filter((m) => m.tipo === "ahorro");
-  const previo = r2(sum(ahorroInicial(db), (m) => m.importe));
-  const enObjetivos = r2(sum(aportes.filter((m) => m.objetivoId !== OBJETIVO_FIJO.id), (m) => m.importe));
-  const total = r2(enObjetivos + previo + Math.max(0, huchaPeriodicos(db).saldo));
-  const esteMes = r2(sum(aportes.filter((m) => m.fecha.startsWith(ui.mes)), (m) => m.importe));
+  const especiales = new Set([OBJETIVO_FIJO.id, AHORRO_PRINCIPAL.id]);
+  const enObjetivos = r2(sum(aportes.filter((m) => !especiales.has(m.objetivoId)), (m) => m.importe));
+  // Cuenta aparte de "Pagos no mensuales": no se suma aquí
+  const total = ahorrosPrincipales(db);
+  const esteMes = r2(sum(aportes.filter((m) => m.objetivoId !== OBJETIVO_FIJO.id && m.fecha.startsWith(ui.mes)), (m) => m.importe));
   const metas = r2(sum(db.objetivos, (o) => o.meta));
   const conMeta = db.objetivos.filter((o) => o.meta > 0);
 
@@ -31,7 +32,7 @@ export default function Ahorros() {
 
       <section className="saldo ahorro-total">
         <div className="saldo-arriba">
-          <span className="saldo-etq">Total ahorrado</span>
+          <span className="saldo-etq">Ahorros principales</span>
           <button type="button" className="chip-cristal boton-mas" onClick={() => ui.abrir("ahorroInicial")} aria-label="Añadir dinero a tus ahorros" title="Añadir dinero">
             <Plus size={20} />
           </button>
@@ -52,16 +53,8 @@ export default function Ahorros() {
         {conMeta.length > 0 && <BarraRayas pct={(enObjetivos / metas) * 100} />}
       </section>
 
-      {/* Siempre visible: sin objetivos, primero deja crear uno */}
-      <button
-        type="button"
-        className="btn btn-primario ahorro-apartar"
-        onClick={() =>
-          db.objetivos.length
-            ? ui.abrir("apuntar", { tipo: "ahorro" })
-            : ui.abrir("objetivo", { onGuardado: (o) => ui.abrir("apuntar", { tipo: "ahorro", objetivoId: o.id }) })
-        }
-      >
+      {/* Por defecto va a Ahorros principales; ahí se puede elegir otro destino */}
+      <button type="button" className="btn btn-primario ahorro-apartar" onClick={() => ui.abrir("apuntar", { tipo: "ahorro", objetivoId: AHORRO_PRINCIPAL.id })}>
         <ArrowDownToLine size={18} /> Apartar dinero
       </button>
 
