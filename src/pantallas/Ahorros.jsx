@@ -49,7 +49,7 @@ export default function Ahorros() {
 
       {/* Por defecto va a Ahorros principales; ahí se puede elegir otro destino */}
       <button type="button" className="btn btn-primario ahorro-apartar" onClick={() => ui.abrir("apuntar", { tipo: "ahorro", objetivoId: AHORRO_PRINCIPAL.id })}>
-        <ArrowDownToLine size={18} /> Apartar dinero
+        <ArrowDownToLine size={18} /> Mover ahorros
       </button>
 
       <section className="seccion">
