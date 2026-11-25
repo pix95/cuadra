@@ -1,0 +1,7 @@
+node_modules/
+dist/
+datos/
+*.log
+
+# Datos personales: nunca a GitHub
+presupuesto-personal.js
