@@ -2618,6 +2618,27 @@ button.recibo-ok:active {
 .hucha-fila {
   cursor: default;
 }
+.objetivo-fijo {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-color: rgba(246, 165, 124, 0.25);
+}
+.objetivo-fijo-saldo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+.objetivo-fijo-saldo b {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.objetivo-fijo-saldo small {
+  font-size: 12.5px;
+  color: var(--texto-3);
+}
 .lista-objetivos {
   display: flex;
   flex-direction: column;

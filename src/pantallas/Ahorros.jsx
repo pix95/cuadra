@@ -3,7 +3,7 @@ import { Plus, ArrowDownToLine, CalendarClock } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
 import { ahorradoObjetivo, ahorroInicial, evolucionAhorro, huchaPeriodicos, primerMes, CADA } from "../lib/calculos.js";
 import { eur, nombreMes, mayus, MESES, MESES_CORTOS, r2, sum, mesActual, moverMes, fechaCorta } from "../lib/formato.js";
-import { Cifra, BarraRayas } from "../components/comunes.jsx";
+import { Cifra, BarraRayas, Hoja } from "../components/comunes.jsx";
 import { Ficha, colorCategoria } from "../lib/iconos.jsx";
 import { GraficoBarras } from "../components/GraficoBarras.jsx";
 import { PropuestaCierre } from "../components/PropuestaCierre.jsx";
@@ -72,6 +72,7 @@ export default function Ahorros() {
           <h2>Objetivos</h2>
         </div>
         <div className="lista-objetivos">
+          <ObjetivoFijo />
           {db.objetivos.map((o) => {
             const ahorrado = ahorradoObjetivo(db, o.id);
             const p = o.meta > 0 ? (ahorrado / o.meta) * 100 : 0;
@@ -112,7 +113,6 @@ export default function Ahorros() {
         </div>
       </section>
 
-      <Hucha />
 
     </div>
   );
@@ -153,50 +153,68 @@ function Evolucion() {
   );
 }
 
-// Hucha para IBI, comunidad, agua, seguro del coche…
-function Hucha() {
+// Objetivo fijo para los pagos que no son mensuales (IBI, comunidad, agua…).
+// Se llena solo cada mes con la parte proporcional y se vacía al pagarlos.
+function ObjetivoFijo() {
   const { db } = useDatos();
+  const ui = useUI();
   const h = huchaPeriodicos(db);
   if (!h.porPartida.length) return null;
   const bien = h.saldo >= 0;
   return (
-    <section className="seccion">
-      <div className="seccion-cab">
-        <h2>Hucha de pagos periódicos</h2>
+    <button type="button" className="tarjeta objetivo-fijo" onClick={() => ui.abrir("hucha")}>
+      <span className="cierre-icono hucha-icono">
+        <CalendarClock size={20} />
+      </span>
+      <span className="objetivo-txt">
+        <b>Pagos no mensuales</b>
+        <small>Fijo · {eur(h.alMes, { corto: true })}/mes para IBI, comunidad, agua…</small>
+      </span>
+      <span className="objetivo-fijo-saldo">
+        <b className={bien ? "" : "negativo"}>{eur(h.saldo, { corto: true })}</b>
+        <small>{bien ? "en la hucha" : "te falta"}</small>
+      </span>
+    </button>
+  );
+}
+
+export function HojaHucha({ cerrar }) {
+  const { db } = useDatos();
+  const h = huchaPeriodicos(db);
+  const bien = h.saldo >= 0;
+  return (
+    <Hoja
+      titulo="Pagos no mensuales"
+      subtitulo={`Objetivo fijo: cada mes se apartan ${eur(h.alMes)} para los recibos que no llegan cada mes, y se gastan cuando los pagas.`}
+      onCerrar={cerrar}
+    >
+      <dl className="cuadre">
+        <dt>Apartado desde {nombreMes(h.inicio, { año: true })}</dt>
+        <dd>{eur(h.apartado)}</dd>
+        <dt>Pagado</dt>
+        <dd>{eur(h.pagado)}</dd>
+        <dt className="total">{bien ? "En la hucha" : "Te falta"}</dt>
+        <dd className={`total ${bien ? "positivo" : "negativo"}`}>{eur(Math.abs(h.saldo))}</dd>
+      </dl>
+      {!bien && <p className="ayuda">Has pagado más de lo apartado: es normal si un recibo grande llegó al poco de empezar.</p>}
+      <div className="lista" style={{ marginTop: 12 }}>
+        {h.porPartida.map(({ partida: p, pagadoAño, anual, ultimo }) => (
+          <div key={p.id} className="fila-partida hucha-fila">
+            <Ficha icono={p.icono} color={colorCategoria(p.categoria)} size={36} />
+            <span className="fila-partida-txt">
+              <b>{p.nombre}</b>
+              <small>
+                {eur(p.importe, { corto: true })} {CADA[p.frecuencia]}
+                {ultimo ? ` · último ${fechaCorta(ultimo)}` : ""}
+              </small>
+            </span>
+            <span className="fila-partida-imp">
+              {eur(pagadoAño, { corto: true })}
+              <small>de {eur(anual, { corto: true })} este año</small>
+            </span>
+          </div>
+        ))}
       </div>
-      <div className="tarjeta hucha">
-        <div className="hucha-cab">
-          <span className="cierre-icono hucha-icono">
-            <CalendarClock size={20} />
-          </span>
-          <span>
-            <small>{bien ? "Tienes en la hucha" : "Te falta en la hucha"}</small>
-            <Cifra valor={Math.abs(h.saldo)} className={`cifra-l ${bien ? "" : "negativo"}`} />
-          </span>
-        </div>
-        <p className="ayuda">
-          Cada mes se apartan {eur(h.alMes)} (desde {nombreMes(h.inicio, { año: true })}: {eur(h.apartado, { corto: true })}) y se gastan cuando llegan los recibos ({eur(h.pagado, { corto: true })} pagados).
-          {!bien && " Has pagado más de lo apartado: es normal si un recibo grande llegó al poco de empezar."}
-        </p>
-        <div className="lista">
-          {h.porPartida.map(({ partida: p, pagadoAño, anual, ultimo }) => (
-            <div key={p.id} className="fila-partida hucha-fila">
-              <Ficha icono={p.icono} color={colorCategoria(p.categoria)} size={36} />
-              <span className="fila-partida-txt">
-                <b>{p.nombre}</b>
-                <small>
-                  {eur(p.importe, { corto: true })} {CADA[p.frecuencia]}
-                  {ultimo ? ` · último ${fechaCorta(ultimo)}` : ""}
-                </small>
-              </span>
-              <span className="fila-partida-imp">
-                {eur(pagadoAño, { corto: true })}
-                <small>de {eur(anual, { corto: true })} este año</small>
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
+    </Hoja>
   );
 }

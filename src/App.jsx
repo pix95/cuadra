@@ -8,7 +8,7 @@ import Movimientos from "./pantallas/Movimientos.jsx";
 import Analisis from "./pantallas/Analisis.jsx";
 import Presupuesto from "./pantallas/Presupuesto.jsx";
 import Simulador from "./pantallas/Simulador.jsx";
-import Ahorros from "./pantallas/Ahorros.jsx";
+import Ahorros, { HojaHucha } from "./pantallas/Ahorros.jsx";
 import Apuntar from "./pantallas/Apuntar.jsx";
 import Acceso from "./pantallas/Acceso.jsx";
 import { HojaAhorroInicial, HojaCierre, HojaSueldo, HojaPartida, HojaObjetivo, HojaAlertas, HojaRecibos, HojaAjustes, HojaElegirPartida, HojaMeses, HojaConfirmar } from "./pantallas/Hojas.jsx";
@@ -26,6 +26,7 @@ const CAPAS = {
   meses: HojaMeses,
   confirmar: HojaConfirmar,
   cierre: HojaCierre,
+  hucha: HojaHucha,
   ahorroInicial: HojaAhorroInicial,
 };
 
