@@ -104,7 +104,7 @@ export default function Ahorros() {
           <b>{eur(cuentas.total)}</b>
         </div>
         <small>
-          Principales {eur(cuentas.principales, { corto: true })} · Pagos no mensuales {eur(cuentas.noMensuales, { corto: true })} · Objetivos {eur(cuentas.objetivos, { corto: true })}
+          Principales {eur(cuentas.principales, { corto: true })} · Recibos no mensuales {eur(cuentas.noMensuales, { corto: true })} · Objetivos {eur(cuentas.objetivos, { corto: true })}
         </small>
       </div>
 
@@ -163,7 +163,7 @@ function ObjetivoFijo() {
         <CalendarClock size={20} />
       </span>
       <span className="objetivo-txt">
-        <b>Pagos no mensuales</b>
+        <b>Recibos no mensuales</b>
         <small>Fijo · para IBI, comunidad, agua…</small>
       </span>
       <span className="objetivo-fijo-saldo">
@@ -180,7 +180,7 @@ export function HojaHucha({ cerrar }) {
   const h = huchaPeriodicos(db);
   return (
     <Hoja
-      titulo="Pagos no mensuales"
+      titulo="Recibos no mensuales"
       subtitulo="Objetivo fijo para los recibos que no llegan cada mes (IBI, comunidad, agua…). Tú decides cada mes cuánto apartas."
       onCerrar={cerrar}
       pie={

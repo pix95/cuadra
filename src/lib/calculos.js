@@ -74,7 +74,7 @@ export function resumenMes(db, mes, hoy = hoyISO()) {
   const disponible = r2(entradas - gastado - ahorrado);
 
   // Lo que todavía falta por salir según el presupuesto (nunca negativo por partida)
-  // Lo apartado este mes a "Pagos no mensuales" ya cubre la parte de los pagos periódicos
+  // Lo apartado este mes a "Recibos no mensuales" ya cubre la parte de los pagos periódicos
   let pendienteMensual = 0;
   let pendientePeriodico = 0;
   for (const p of db.partidas) {
@@ -313,7 +313,7 @@ export function evolucionAhorro(db, hasta, n = 12) {
   return out;
 }
 
-// "Pagos no mensuales": lo que has apartado tú, y cuánto tocaría apartar al mes
+// "Recibos no mensuales": lo que has apartado tú, y cuánto tocaría apartar al mes
 // para cubrir los recibos que no son mensuales (IBI, comunidad, agua…).
 export function huchaPeriodicos(db) {
   const aportes = db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id);
@@ -323,7 +323,7 @@ export function huchaPeriodicos(db) {
 }
 
 // Cada cuenta de ahorro va por separado: Ahorros principales (lo que ya tenías
-// + lo que apartas ahí), Pagos no mensuales y cada objetivo.
+// + lo que apartas ahí), Recibos no mensuales y cada objetivo.
 export function ahorrosPrincipales(db) {
   return r2(
     sum(

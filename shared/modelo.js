@@ -17,10 +17,10 @@ export const uid = () =>
         return (c === "x" ? r : (r & 3) | 8).toString(16);
       });
 
-// Objetivo fijo "Pagos no mensuales": existe siempre y no se guarda como objetivo
+// Objetivo fijo "Recibos no mensuales": existe siempre y no se guarda como objetivo
 export const OBJETIVO_FIJO = {
   id: "00000000-0000-4000-8000-0000000000fa",
-  nombre: "Pagos no mensuales",
+  nombre: "Recibos no mensuales",
   meta: 0,
   fecha: null,
   icono: "calendario",
