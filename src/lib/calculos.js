@@ -312,14 +312,11 @@ export function evolucionAhorro(db, hasta, n = 12) {
   return out;
 }
 
-// "Pagos no mensuales": lo que apartas tú (cuando quieres) menos lo que pagas
-// de recibos periódicos desde tu primera aportación.
+// "Pagos no mensuales": lo que has apartado tú, y cuánto tocaría apartar al mes
+// para cubrir los recibos que no son mensuales (IBI, comunidad, agua…).
 export function huchaPeriodicos(db) {
   const aportes = db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id);
-  const apartado = r2(sum(aportes, (m) => m.importe));
-  const desde = aportes.map((m) => m.fecha).sort()[0] || null;
-  const ids = new Set(db.partidas.filter((p) => !esMensual(p)).map((p) => p.id));
-  const pagado = desde ? r2(sum(db.movimientos.filter((m) => m.tipo === "gasto" && ids.has(m.partidaId) && m.fecha >= desde), (m) => m.importe)) : 0;
+  const saldo = r2(sum(aportes, (m) => m.importe));
   const alMes = r2(sum(db.partidas.filter((p) => p.activa && !esMensual(p)), prorrateo));
-  return { desde, apartado, pagado, saldo: r2(apartado - pagado), alMes };
+  return { saldo, alMes };
 }

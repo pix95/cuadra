@@ -13,7 +13,6 @@ export default function Ahorros() {
   const ui = useUI();
   const aportes = db.movimientos.filter((m) => m.tipo === "ahorro");
   const previo = r2(sum(ahorroInicial(db), (m) => m.importe));
-  // Lo de "Pagos no mensuales" cuenta lo que queda en esa hucha (ya descontados los recibos pagados)
   const enObjetivos = r2(sum(aportes.filter((m) => m.objetivoId !== OBJETIVO_FIJO.id), (m) => m.importe));
   const total = r2(enObjetivos + previo + Math.max(0, huchaPeriodicos(db).saldo));
   const esteMes = r2(sum(aportes.filter((m) => m.fecha.startsWith(ui.mes)), (m) => m.importe));
@@ -155,7 +154,7 @@ function Evolucion() {
 }
 
 // Objetivo fijo para los pagos que no son mensuales (IBI, comunidad, agua…).
-// Tú decides cada mes cuánto apartas; se descuenta al pagar esos recibos.
+// Tú decides cada mes cuánto apartas.
 function ObjetivoFijo() {
   const ui = useUI();
   const { db } = useDatos();
@@ -172,7 +171,7 @@ function ObjetivoFijo() {
       </span>
       <span className="objetivo-fijo-saldo">
         <b className={bien ? "" : "negativo"}>{eur(h.saldo, { corto: true })}</b>
-        <small>{bien ? "en la hucha" : "te falta"}</small>
+        <small>en la hucha</small>
       </span>
     </button>
   );
@@ -182,11 +181,10 @@ export function HojaHucha({ cerrar }) {
   const { db } = useDatos();
   const ui = useUI();
   const h = huchaPeriodicos(db);
-  const bien = h.saldo >= 0;
   return (
     <Hoja
       titulo="Pagos no mensuales"
-      subtitulo="Objetivo fijo para los recibos que no llegan cada mes (IBI, comunidad, agua…). Tú decides cada mes cuánto apartas; cuando pagas uno de esos recibos, se descuenta de aquí."
+      subtitulo="Objetivo fijo para los recibos que no llegan cada mes (IBI, comunidad, agua…). Tú decides cada mes cuánto apartas."
       onCerrar={cerrar}
       pie={
         <button
@@ -202,15 +200,11 @@ export function HojaHucha({ cerrar }) {
       }
     >
       <dl className="cuadre">
-        <dt>Apartado{h.desde ? ` desde ${nombreMes(h.desde.slice(0, 7), { año: true })}` : ""}</dt>
-        <dd>{eur(h.apartado)}</dd>
-        <dt>Recibos pagados</dt>
-        <dd>{eur(h.pagado)}</dd>
-        <dt className="total">{bien ? "En la hucha" : "Te falta"}</dt>
-        <dd className={`total ${bien ? "positivo" : "negativo"}`}>{eur(Math.abs(h.saldo))}</dd>
+        <dt className="total">En la hucha</dt>
+        <dd className={`total ${h.saldo < 0 ? "negativo" : "positivo"}`}>{eur(h.saldo)}</dd>
       </dl>
       <p className="ayuda" style={{ marginTop: 12 }}>
-        {h.apartado ? "" : "Aún no has apartado nada. "}Para cubrirlos todos te tocaría apartar unos <b>{eur(h.alMes, { corto: true })} al mes</b>.
+        Para cubrirlos todos te tocaría apartar unos <b>{eur(h.alMes)} al mes</b>.
       </p>
     </Hoja>
   );
