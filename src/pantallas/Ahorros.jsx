@@ -52,11 +52,18 @@ export default function Ahorros() {
         {conMeta.length > 0 && <BarraRayas pct={(enObjetivos / metas) * 100} />}
       </section>
 
-      {db.objetivos.length > 0 && (
-        <button type="button" className="btn btn-primario ahorro-apartar" onClick={() => ui.abrir("apuntar", { tipo: "ahorro" })}>
-          <ArrowDownToLine size={18} /> Apartar dinero
-        </button>
-      )}
+      {/* Siempre visible: sin objetivos, primero deja crear uno */}
+      <button
+        type="button"
+        className="btn btn-primario ahorro-apartar"
+        onClick={() =>
+          db.objetivos.length
+            ? ui.abrir("apuntar", { tipo: "ahorro" })
+            : ui.abrir("objetivo", { onGuardado: (o) => ui.abrir("apuntar", { tipo: "ahorro", objetivoId: o.id }) })
+        }
+      >
+        <ArrowDownToLine size={18} /> Apartar dinero
+      </button>
 
       <Evolucion />
 
