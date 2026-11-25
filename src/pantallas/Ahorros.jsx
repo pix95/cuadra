@@ -47,22 +47,10 @@ export default function Ahorros() {
         </div>
       </section>
 
-      <div className="tarjeta entre-cuentas">
-        <div className="entre-cuentas-cab">
-          <span>Entre todas tus cuentas</span>
-          <b>{eur(cuentas.total)}</b>
-        </div>
-        <small>
-          Principales {eur(cuentas.principales, { corto: true })} · Pagos no mensuales {eur(cuentas.noMensuales, { corto: true })} · Objetivos {eur(cuentas.objetivos, { corto: true })}
-        </small>
-      </div>
-
       {/* Por defecto va a Ahorros principales; ahí se puede elegir otro destino */}
       <button type="button" className="btn btn-primario ahorro-apartar" onClick={() => ui.abrir("apuntar", { tipo: "ahorro", objetivoId: AHORRO_PRINCIPAL.id })}>
         <ArrowDownToLine size={18} /> Apartar dinero
       </button>
-
-      <Evolucion />
 
       <section className="seccion">
         <div className="seccion-cab">
@@ -109,6 +97,18 @@ export default function Ahorros() {
           </button>
         </div>
       </section>
+
+      <div className="tarjeta entre-cuentas">
+        <div className="entre-cuentas-cab">
+          <span>Entre todas tus cuentas</span>
+          <b>{eur(cuentas.total)}</b>
+        </div>
+        <small>
+          Principales {eur(cuentas.principales, { corto: true })} · Pagos no mensuales {eur(cuentas.noMensuales, { corto: true })} · Objetivos {eur(cuentas.objetivos, { corto: true })}
+        </small>
+      </div>
+
+      <Evolucion />
 
 
     </div>
