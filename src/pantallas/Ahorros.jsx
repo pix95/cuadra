@@ -29,7 +29,14 @@ export default function Ahorros() {
       <section className="saldo ahorro-total">
         <div className="saldo-arriba">
           <span className="saldo-etq">Ahorros principales</span>
-          <button type="button" className="chip-cristal boton-mas" onClick={() => ui.abrir("ahorroInicial")} aria-label="Añadir dinero a tus ahorros" title="Añadir dinero">
+          <button
+            type="button"
+            className="chip-cristal boton-mas"
+            // Sale de lo que te queda del mes, como cualquier ahorro
+            onClick={() => ui.abrir("apuntar", { tipo: "ahorro", objetivoId: AHORRO_PRINCIPAL.id })}
+            aria-label="Apartar a Ahorros principales"
+            title="Apartar a Ahorros principales"
+          >
             <Plus size={20} />
           </button>
         </div>
