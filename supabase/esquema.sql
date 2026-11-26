@@ -53,6 +53,9 @@ alter table public.movimientos add column if not exists objetivo_id uuid;
 alter table public.movimientos add column if not exists creado timestamptz not null default now();
 -- 2.1: gasto pagado desde la hucha ↔ su retirada (cada uno apunta al otro)
 alter table public.movimientos add column if not exists enlace uuid;
+-- Mes al que cuenta si no es el de la fecha (el gasto del 30 de noviembre con la
+-- nómina de diciembre ya ingresada cuenta para diciembre)
+alter table public.movimientos add column if not exists mes text;
 -- Los ingresos y el ahorro no llevan partida
 alter table public.movimientos alter column partida_id drop not null;
 create index if not exists movimientos_usuario_fecha on public.movimientos (user_id, fecha);

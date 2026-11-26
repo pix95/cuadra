@@ -1,7 +1,7 @@
 // Exportar e importar movimientos en CSV (separado por ";" para que Excel en
 // español lo abra bien). La importación acepta también el CSV de la versión
 // anterior de Cuadra: Fecha;Importe;Partida;Categoría;Concepto.
-import { uid, r2, normalizarPartida, ErrorDatos, objetivosConFijo, cuentas, cuentaDeAjuste, TIPOS_MANTENIMIENTO } from "./modelo.js";
+import { uid, r2, normalizarPartida, ErrorDatos, objetivosConFijo, cuentas, cuentaDeAjuste, TIPOS_MANTENIMIENTO, mesSiguiente } from "./modelo.js";
 
 // Los "inicial" antiguos se exportan como ajuste de Ahorros principales
 const TIPOS = { gasto: "Gasto", ingreso: "Ingreso", ahorro: "Ahorro", ajuste: "Ajuste", inicial: "Ajuste" };
@@ -28,7 +28,7 @@ export function exportarCSV(d) {
   const repostaje = new Map((d.repostajes || []).filter((r) => r.movimientoId).map((r) => [r.movimientoId, r]));
   const mant = new Map((d.mantenimientos || []).filter((m) => m.movimientoId).map((m) => [m.movimientoId, m]));
   const dec = (n) => Number(n).toFixed(2).replace(".", ",");
-  const filas = [["Fecha", "Tipo", "Importe", "Partida", "Categoría", "Objetivo", "Concepto", "Vehículo", "Litros", "Km", "Lleno", "Gasolinera", "Mantenimiento", "Taller", "Notas"]];
+  const filas = [["Fecha", "Tipo", "Importe", "Partida", "Categoría", "Objetivo", "Concepto", "Cuenta para", "Vehículo", "Litros", "Km", "Lleno", "Gasolinera", "Mantenimiento", "Taller", "Notas"]];
   [...d.movimientos]
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || String(a.creado).localeCompare(String(b.creado)))
     .forEach((m) => {
@@ -42,7 +42,7 @@ export function exportarCSV(d) {
         : x
           ? [vehiculos.get(x.vehiculoId)?.nombre || "", "", x.km ?? "", "", "", TIPOS_MANTENIMIENTO[x.tipo] || x.tipo, x.taller, x.notas]
           : ["", "", "", "", "", "", "", ""];
-      filas.push([m.fecha, TIPOS[m.tipo] || m.tipo, dec(m.importe), p ? p.nombre : "", p ? p.categoria : "", o ? o.nombre : "", m.concepto, ...coche]);
+      filas.push([m.fecha, TIPOS[m.tipo] || m.tipo, dec(m.importe), p ? p.nombre : "", p ? p.categoria : "", o ? o.nombre : "", m.concepto, m.mes || "", ...coche]);
     });
   return "﻿" + filas.map((f) => f.map(celda).join(";")).join("\r\n");
 }
@@ -115,6 +115,7 @@ export function importarCSV(d, csv) {
   const iCategoria = col("categoria");
   const iObjetivo = col("objetivo");
   const iConcepto = col("concepto");
+  const iMes = col("cuenta para");
   // Columnas del coche (opcionales)
   const iVehiculo = col("vehiculo");
   const iLitros = col("litros");
@@ -214,7 +215,10 @@ export function importarCSV(d, csv) {
       resumen.repetidos++;
       continue;
     }
-    const m = { id: uid(), tipo, fecha, importe, partidaId, objetivoId, concepto, creado: new Date().toISOString() };
+    // «Cuenta para»: solo vale el mes siguiente al de la fecha (si no, el de la fecha)
+    const mesTxt = iMes >= 0 ? String(f[iMes] ?? "").trim() : "";
+    const mes = tipo !== "ajuste" && mesTxt === mesSiguiente(fecha.slice(0, 7)) ? mesTxt : null;
+    const m = { id: uid(), tipo, fecha, importe, partidaId, objetivoId, concepto, mes, creado: new Date().toISOString() };
     d.movimientos.push(m);
     cambiosMovs.push({ tabla: "movimientos", tipo: "upsert", id: m.id, fila: { ...m } });
     resumen.importados++;

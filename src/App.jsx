@@ -4,7 +4,7 @@ import { Segmentado } from "./components/comunes.jsx";
 import Coche from "./pantallas/Coche.jsx";
 import { HojaVehiculo, HojaRepostaje, HojaMantenimiento, HojaRecordatorio } from "./pantallas/CocheHojas.jsx";
 import { useDatos, useUI, UIProvider } from "./store.jsx";
-import { mesActual } from "./lib/formato.js";
+import { mesEnCurso } from "./lib/calculos.js";
 import { ICONO } from "./config.js";
 import Inicio from "./pantallas/Inicio.jsx";
 import Movimientos from "./pantallas/Movimientos.jsx";
@@ -119,7 +119,7 @@ function Marco() {
   useEffect(() => {
     if (preguntado.current) return;
     preguntado.current = true;
-    const mes = mesActual();
+    const mes = mesEnCurso(db);
     let pospuesto = false;
     try {
       pospuesto = sessionStorage.getItem(`cuadra:sueldo-pospuesto:${mes}`) === "1";

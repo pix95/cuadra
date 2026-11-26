@@ -1,8 +1,8 @@
 // Ahorros: lo que tienes apartado y tus objetivos
 import { Plus, ArrowDownToLine, CalendarClock, Scale, TrendingUp, TrendingDown } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { ahorradoObjetivo, ahorrosPrincipales, resumenCuentas, resumenMes, evolucionAhorro, huchaPeriodicos, primerMes, OBJETIVO_FIJO, AHORRO_PRINCIPAL } from "../lib/calculos.js";
-import { eur, nombreMes, mayus, MESES, MESES_CORTOS, r2, sum, mesActual, moverMes, mesCorto } from "../lib/formato.js";
+import { ahorradoObjetivo, ahorrosPrincipales, resumenCuentas, resumenMes, evolucionAhorro, huchaPeriodicos, primerMes, mesDe, mesEnCurso, OBJETIVO_FIJO, AHORRO_PRINCIPAL } from "../lib/calculos.js";
+import { eur, nombreMes, mayus, MESES, MESES_CORTOS, r2, sum, moverMes, mesCorto } from "../lib/formato.js";
 import { Cifra, BarraRayas, Hoja } from "../components/comunes.jsx";
 import { Ficha } from "../lib/iconos.jsx";
 import { GraficoBarras } from "../components/GraficoBarras.jsx";
@@ -13,9 +13,9 @@ export default function Ahorros() {
   const ui = useUI();
   // Cada cuenta va por separado: aquí solo Ahorros principales
   const total = ahorrosPrincipales(db);
-  const esteMes = r2(sum(db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === AHORRO_PRINCIPAL.id && m.fecha.startsWith(ui.mes)), (m) => m.importe));
+  const esteMes = r2(sum(db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === AHORRO_PRINCIPAL.id && mesDe(m) === ui.mes), (m) => m.importe));
   const cuentas = resumenCuentas(db);
-  const cuenta = resumenMes(db, mesActual());
+  const cuenta = resumenMes(db, mesEnCurso(db));
 
   return (
     <div className="ahorros">
@@ -131,7 +131,7 @@ export default function Ahorros() {
 // Cuánto has apartado cada mes y qué parte del sueldo es
 function Evolucion() {
   const { db } = useDatos();
-  const act = mesActual();
+  const act = mesEnCurso(db);
   let n = 1;
   for (let m = primerMes(db); m < act && n < 12; m = moverMes(m, 1)) n++;
   n = Math.max(n, 6);

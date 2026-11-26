@@ -3,8 +3,8 @@ import { Search, X, Plus } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
 import { Navegador, Vacio, Cifra } from "../components/comunes.jsx";
 import { FilaMovimiento, ordenarMovs, describirMovimiento } from "../components/FilaMovimiento.jsx";
-import { ordenCategorias, ordenar, esAjuste } from "../lib/calculos.js";
-import { eur, nombreMes, moverMes, mesActual, fechaRelativa, sum, r2 } from "../lib/formato.js";
+import { ordenCategorias, ordenar, esAjuste, mesDe, mesEnCurso } from "../lib/calculos.js";
+import { eur, nombreMes, moverMes, fechaRelativa, sum, r2 } from "../lib/formato.js";
 
 const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -21,7 +21,7 @@ export default function Movimientos() {
     const t = norm(q.trim());
     // Al buscar se mira en todos los meses
     // Lo que ya tenías ahorrado antes de usar la app se ve en Ahorros, no aquí
-    let ms = buscando ? db.movimientos : db.movimientos.filter((m) => m.fecha.startsWith(todoElAño ? ui.mes.slice(0, 4) : ui.mes));
+    let ms = buscando ? db.movimientos : db.movimientos.filter((m) => mesDe(m).startsWith(todoElAño ? ui.mes.slice(0, 4) : ui.mes));
     if (tipo !== "todos") ms = ms.filter((m) => m.tipo === tipo);
     if (partida) ms = ms.filter((m) => m.partidaId === partida);
     if (t) {
@@ -60,7 +60,7 @@ export default function Movimientos() {
           texto={todoElAño ? `Todo ${ui.mes.slice(0, 4)}` : nombreMes(ui.mes, { año: true, cap: true })}
           onAnterior={() => ui.setMes(moverMes(ui.mes, todoElAño ? -12 : -1))}
           onSiguiente={() => ui.setMes(moverMes(ui.mes, todoElAño ? 12 : 1))}
-          onTexto={() => ui.setMes(mesActual())}
+          onTexto={() => ui.setMes(mesEnCurso(db))}
           tituloTexto="Volver al mes actual"
         />
       )}

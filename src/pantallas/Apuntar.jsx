@@ -1,12 +1,12 @@
 // Pantalla para apuntar (o corregir) un gasto, un ingreso o un ahorro,
 // con teclado numérico y "desliza para apuntar".
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, CalendarDays, Trash2, ChevronsUpDown, Plus, Undo2, PencilLine, LayoutGrid, Zap, Fuel } from "lucide-react";
+import { ChevronLeft, CalendarDays, Trash2, ChevronsUpDown, Plus, Undo2, PencilLine, LayoutGrid, Zap, Fuel, CalendarArrowUp } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
 import { Teclado, aplicarTecla, valorTeclado, tecladoDe, CifraTecleada, Deslizar, Segmentado, Interruptor, useDesplazarConRaton } from "../components/comunes.jsx";
 import { Ficha, colorCategoria } from "../lib/iconos.jsx";
-import { partidasFrecuentes, esMensual, anual, gastosPorPartida, ahorradoObjetivo, objetivosConFijo, AHORRO_PRINCIPAL, OBJETIVO_FIJO, vehiculoDeCombustible, kmEstimados } from "../lib/calculos.js";
-import { eur, hoyISO, mesActual, diasEnMes, fechaRelativa, fechaCorta, nombreMes, r2, aInput, parseImporte } from "../lib/formato.js";
+import { partidasFrecuentes, esMensual, anual, gastosPorPartida, ahorradoObjetivo, objetivosConFijo, AHORRO_PRINCIPAL, OBJETIVO_FIJO, vehiculoDeCombustible, kmEstimados, mesDe, mesEnCurso, mesParaFecha } from "../lib/calculos.js";
+import { eur, hoyISO, mesActual, diasEnMes, fechaRelativa, fechaCorta, nombreMes, r2, aInput, parseImporte, moverMes } from "../lib/formato.js";
 
 const TITULOS = { gasto: ["Nuevo gasto", "Editar gasto"], ingreso: ["Nuevo ingreso", "Editar ingreso"], ahorro: ["Apartar ahorro", "Editar ahorro"] };
 const CONCEPTOS_INGRESO = [
@@ -18,9 +18,10 @@ const CONCEPTOS_INGRESO = [
   { texto: "Reembolso", icono: "cartera" },
 ];
 
-function fechaPorDefecto(mes) {
+function fechaPorDefecto(mes, db) {
   const act = mesActual();
-  if (mes === act) return hoyISO();
+  // Hoy también si es el mes que estás viviendo (diciembre el 30 de noviembre)
+  if (mes === act || mes === mesEnCurso(db)) return hoyISO();
   if (mes < act) return `${mes}-${String(diasEnMes(mes)).padStart(2, "0")}`;
   return `${mes}-01`;
 }
@@ -36,7 +37,10 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
   const [negativo, setNegativo] = useState(movimiento ? movimiento.importe < 0 : false);
   const [partidaId, setPartidaId] = useState(movimiento?.partidaId || pInicial || "");
   const [objetivoId, setObjetivoId] = useState(movimiento?.objetivoId || oInicial || AHORRO_PRINCIPAL.id);
-  const [fecha, setFecha] = useState(movimiento?.fecha || fechaPorDefecto(ui.mes));
+  const [fecha, setFecha] = useState(movimiento?.fecha || fechaPorDefecto(ui.mes, db));
+  // Mes al que cuenta: el de la fecha o el siguiente. Al apuntar se propone el
+  // mes que estás mirando; si no encaja con la fecha, el automático.
+  const [mesElegido, setMesElegido] = useState(movimiento ? mesDe(movimiento) : ui.mes);
   const [concepto, setConcepto] = useState(movimiento?.concepto || "");
   const [verNota, setVerNota] = useState(Boolean(movimiento?.concepto));
   const [borrar, setBorrar] = useState(false);
@@ -59,6 +63,12 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
     if (!raiz.current?.contains(document.activeElement)) raiz.current?.focus({ preventScroll: true });
   }, []);
 
+  const mesFecha = fecha.slice(0, 7);
+  const mesSig = moverMes(mesFecha, 1);
+  // Automático: si la nómina del mes siguiente ya entró y el gasto es de ese día o después
+  const ingSig = db.meses[mesSig]?.ingresada;
+  const mesCuenta = mesParaFecha(db, fecha, mesElegido);
+  const verMesCuenta = Boolean(ingSig) || mesCuenta !== mesFecha;
   const partida = db.partidas.find((p) => p.id === partidaId);
   const vehiculo = tipo === "gasto" && !negativo ? vehiculoDeCombustible(db, partidaId) : null;
   const objetivo = objetivosConFijo(db).find((o) => o.id === objetivoId);
@@ -76,14 +86,14 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
     if (!partida) return null;
     const otros = db.movimientos.filter((m) => m.id !== movimiento?.id);
     if (esMensual(partida)) {
-      const mes = fecha.slice(0, 7);
-      const g = gastosPorPartida(otros.filter((m) => m.fecha.startsWith(mes)), db.partidas).get(partida.id) || 0;
+      const mes = mesCuenta;
+      const g = gastosPorPartida(otros.filter((m) => mesDe(m) === mes), db.partidas).get(partida.id) || 0;
       return { pres: partida.importe, gastado: r2(g), queda: r2(partida.importe - g), ambito: nombreMes(mes) };
     }
-    const año = fecha.slice(0, 4);
-    const g = gastosPorPartida(otros.filter((m) => m.fecha.startsWith(año)), db.partidas).get(partida.id) || 0;
+    const año = mesCuenta.slice(0, 4);
+    const g = gastosPorPartida(otros.filter((m) => mesDe(m).startsWith(año)), db.partidas).get(partida.id) || 0;
     return { pres: anual(partida), gastado: r2(g), queda: r2(anual(partida) - g), ambito: año };
-  }, [partida, fecha, db.movimientos, db.partidas, movimiento?.id]);
+  }, [partida, mesCuenta, db.movimientos, db.partidas, movimiento?.id]);
 
   // De dónde sale el dinero de un recibo no mensual pagado desde la hucha
   const pagoHucha = useMemo(() => {
@@ -113,6 +123,7 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
       ...(movimiento || {}),
       tipo,
       fecha,
+      mes: mesCuenta,
       importe: negativo && tipo !== "ingreso" ? -importe : importe,
       partidaId: tipo === "gasto" ? partidaId : null,
       objetivoId: tipo === "ahorro" ? objetivoId : null,
@@ -127,7 +138,7 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
           ? await acc.guardarGasto(mov, { desdeHucha: Boolean(pagoHucha) && desdeHucha, ...(repostaje !== undefined ? { repostaje } : {}) })
           : await acc.guardarMovimiento(mov);
       cerrar();
-      const otroMes = fecha.slice(0, 7) !== ui.mes ? ` (${nombreMes(fecha.slice(0, 7))})` : "";
+      const otroMes = mesCuenta !== ui.mes ? ` (${nombreMes(mesCuenta)})` : "";
       const hucha = r.deHucha ? ` · ${eur(r.deHucha, { corto: true })} de la hucha` : r.repostaje ? " · repostaje" : "";
       if (editando) {
         const nuevos = r.enlace && !antes.some((m) => m.id === r.enlace) ? [r.enlace] : [];
@@ -326,7 +337,7 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
             <Ficha icono="cartera" color="#c9f36b" size={46} radio={23} />
             <span className="elegido-txt">
               <b>Ingreso extra</b>
-              <small>Se suma a tu sueldo de {nombreMes(fecha.slice(0, 7))}</small>
+              <small>Se suma a tu sueldo de {nombreMes(mesCuenta)}</small>
             </span>
           </div>
         )}
@@ -367,6 +378,16 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
             <button type="button" className="pill pill-boton" onClick={abrirFecha}>
               <CalendarDays size={14} /> {fechaRelativa(fecha) === "Hoy" ? `Hoy · ${fechaCorta(fecha)}` : fechaRelativa(fecha)}
             </button>
+            {verMesCuenta && (
+              <button
+                type="button"
+                className={`pill pill-boton ${mesCuenta !== mesFecha ? "pill-lima" : ""}`}
+                onClick={() => setMesElegido(mesCuenta === mesFecha ? mesSig : mesFecha)}
+                title="Cambiar el mes al que cuenta"
+              >
+                <CalendarArrowUp size={14} /> Cuenta para {nombreMes(mesCuenta)}
+              </button>
+            )}
             {tipo !== "ingreso" && (
               <button type="button" className={`pill pill-boton ${negativo ? "pill-lima" : ""}`} aria-pressed={negativo} onClick={() => setNegativo(!negativo)}>
                 <Undo2 size={14} /> {tipo === "gasto" ? "Devolución" : "Retirar"}

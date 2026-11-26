@@ -6,9 +6,9 @@ import { useDatos, useUI } from "../store.jsx";
 import { Cifra, Segmentado, Vacio, Barra } from "../components/comunes.jsx";
 import { GraficoBarras } from "../components/GraficoBarras.jsx";
 import { Ficha } from "../lib/iconos.jsx";
-import { resumenCoche, vehiculoPrincipal, precioLitro, porcentaje, estadoDe } from "../lib/calculos.js";
+import { resumenCoche, vehiculoPrincipal, precioLitro, porcentaje, estadoDe, mesEnCurso } from "../lib/calculos.js";
 import { COMBUSTIBLES, TIPOS_MANTENIMIENTO } from "../../shared/modelo.js";
-import { eur, fechaCorta, fechaRelativa, nombreMes, mesActual, mayus } from "../lib/formato.js";
+import { eur, fechaCorta, fechaRelativa, nombreMes, mayus } from "../lib/formato.js";
 
 export const num = (n, dec = 1) => (n == null ? "—" : n.toLocaleString("es-ES", { minimumFractionDigits: dec, maximumFractionDigits: dec }));
 export const kmTxt = (n) => `${Math.round(n).toLocaleString("es-ES")} km`;
@@ -138,7 +138,7 @@ export default function Coche() {
         <section className="tarjeta coche-mes ac-mes">
           <div className="tarjeta-cab">
             <h2>
-              {cm.partida.nombre} de {nombreMes(mesActual())}
+              {cm.partida.nombre} de {nombreMes(mesEnCurso(db))}
             </h2>
             <span className={cm.presupuesto && cm.gastado > cm.presupuesto ? "negativo" : "tenue"}>
               {eur(cm.gastado, { corto: true })}

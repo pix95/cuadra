@@ -66,6 +66,10 @@ const falla = (msg, status) => {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const esFecha = (v) => typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(v) && !Number.isNaN(Date.parse(v));
 export const esMes = (v) => typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(v);
+export function mesSiguiente(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+}
 const ahora = () => new Date().toISOString();
 
 function texto(v, campo, { max = 80, obligatorio = false } = {}) {
@@ -223,6 +227,19 @@ function validarMovimiento(b, d, base = {}) {
     if (!objetivoId) falla("Elige la cuenta que quieres cuadrar.");
     if (!cuentas(d).some((o) => o.id === objetivoId) && objetivoId !== base.objetivoId) falla("La cuenta no existe.");
     m.objetivoId = objetivoId;
+  }
+  // Mes al que cuenta (el gasto del 30 de noviembre, con la nómina de diciembre
+  // ya ingresada, cuenta para diciembre). Solo se guarda si no es el de la fecha,
+  // y solo puede ser ese o el siguiente.
+  const mesB = "mes" in b ? b.mes : base.mes;
+  m.mes = null;
+  if (mesB && tipo !== "ajuste" && tipo !== "inicial") {
+    if (!esMes(mesB)) falla("El mes del movimiento no es válido.");
+    const mesFecha = m.fecha.slice(0, 7);
+    if (mesB !== mesFecha) {
+      if (mesB !== mesSiguiente(mesFecha)) falla("Un movimiento solo puede contar para el mes de su fecha o para el siguiente.");
+      m.mes = mesB;
+    }
   }
   // Movimiento enlazado (gasto pagado desde la hucha ↔ su retirada)
   const enlace = "enlace" in b ? b.enlace : base.enlace;
@@ -554,6 +571,7 @@ export const op = {
         partidaId: null,
         importe: -deHucha,
         fecha: gasto.fecha,
+        mes: gasto.mes ?? null,
         concepto: `Pago de ${partida.nombre}`.slice(0, 80),
         enlace: gasto.id,
       };

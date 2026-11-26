@@ -2,7 +2,7 @@
 // de la interfaz (pestaña, mes elegido, ventanas abiertas y avisos).
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { motor } from "./motores/index.js";
-import { mesActual } from "./lib/formato.js";
+import { mesEnCurso } from "./lib/calculos.js";
 
 const DatosCtx = createContext(null);
 const UICtx = createContext(null);
@@ -32,8 +32,10 @@ const vistaDeHash = () => {
 };
 
 export function UIProvider({ children }) {
+  const { db } = useContext(DatosCtx);
   const [vista, setVista] = useState(vistaDeHash);
-  const [mes, setMes] = useState(mesActual);
+  // Al abrir, el mes que estás viviendo (diciembre el 30 de noviembre si ya has ingresado su nómina)
+  const [mes, setMes] = useState(() => mesEnCurso(db));
   const [capas, setCapas] = useState([]); // ventanas abiertas, la última encima
   const [aviso, setAviso] = useState(null);
   const [extra, setExtra] = useState({}); // datos de paso entre pantallas (p. ej. buscar)

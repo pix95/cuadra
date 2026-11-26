@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import {
   resumenMes, saldoCuentaAl, primerMesCuenta, propuestaCierre, cobraEnMes, proximosCobros, calendarioCobros,
   aportacionHucha, recibosNoMensualesMes, partidasFrecuentes, ahorradoObjetivo, evolucionAhorro, alertas,
-  mesDeNomina, importeNomina, nominaDeHoy, nominasAdelantadas,
+  mesDeNomina, importeNomina, nominaDeHoy, adelantadoAlBanco, mesEnCurso, mesPropuesto, analisisPeriodo,
   OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL,
 } from "../src/lib/calculos.js";
 
@@ -230,12 +230,55 @@ test("nómina: importe propuesto con la paga extra y la de hoy", () => {
   assert.deepEqual(nominaDeHoy(db, "2030-11-27"), { mes: "2030-12", sueldo: 2200, ingresada: "2030-11-27" });
 });
 
-test("nómina adelantada: no cuenta en el saldo del mes, pero sí al cuadrar con el banco", () => {
+test("con la nómina de diciembre ingresada, diciembre es el mes en curso", () => {
   const db = base();
   db.meses["2030-11"] = { sueldo: 1000, ingresada: "2030-10-30" };
   db.meses["2030-12"] = { sueldo: 1200, ingresada: "2030-11-28" };
-  assert.equal(resumenMes(db, "2030-11", "2030-11-29").saldoCuenta, 1000);
-  assert.deepEqual(nominasAdelantadas(db, "2030-11-29"), { lista: [{ mes: "2030-12", sueldo: 1200, ingresada: "2030-11-28" }], total: 1200 });
-  assert.equal(nominasAdelantadas(db, "2030-11-27").total, 0, "aún no había llegado");
-  assert.equal(nominasAdelantadas(db, "2030-12-01").total, 0, "en diciembre ya cuenta en el saldo");
+  assert.equal(mesEnCurso(db, "2030-11-27"), "2030-11");
+  assert.equal(mesEnCurso(db, "2030-11-28"), "2030-12");
+  assert.equal(mesEnCurso(db, "2030-12-05"), "2030-12");
+  assert.equal(resumenMes(db, "2030-11", "2030-11-29").fase, "pasado");
+  assert.equal(resumenMes(db, "2030-12", "2030-11-29").fase, "actual");
+  assert.equal(mesPropuesto(db, "2030-11-29"), "2030-12");
+  assert.equal(mesPropuesto(db, "2030-11-27"), "2030-11", "antes de que entre la nómina");
+});
+
+test("un gasto del 30 de noviembre que cuenta para diciembre: sale de diciembre y el banco cuadra", () => {
+  const comida = partida({ nombre: "Comida", importe: 300 });
+  const db = base({ partidas: [comida] });
+  db.meses["2030-11"] = { sueldo: 1000, ingresada: "2030-10-30" };
+  db.meses["2030-12"] = { sueldo: 1200, ingresada: "2030-11-28" };
+  db.movimientos.push(mov({ partidaId: comida.id, fecha: "2030-11-10", importe: 300 }));
+  db.movimientos.push(mov({ partidaId: comida.id, fecha: "2030-11-30", mes: "2030-12", importe: 100 }));
+  const nov = resumenMes(db, "2030-11", "2030-11-30");
+  const dic = resumenMes(db, "2030-12", "2030-11-30");
+  assert.equal(nov.gastado, 300);
+  assert.equal(dic.gastado, 100);
+  assert.equal(dic.gp.get(comida.id), 100, "cuenta en la partida de diciembre");
+  // En el banco: 1000 − 300 + 1200 − 100 = 1800, lo mismo que el saldo de diciembre
+  assert.equal(dic.saldoCuenta, 1800);
+  assert.equal(adelantadoAlBanco(db, "2030-11-30").total, 0);
+  assert.equal(analisisPeriodo(db, "mes", "2030-12-01", "2030-11-30").total, 100);
+  assert.equal(analisisPeriodo(db, "mes", "2030-11-01", "2030-11-30").total, 300);
+});
+
+test("cuadrar con el banco suma lo que ya ha pasado por el banco y cuenta para un mes que no ha empezado", () => {
+  const comida = partida({ nombre: "Comida", importe: 300 });
+  const db = base({ partidas: [comida] });
+  db.meses["2030-11"] = { sueldo: 1000, ingresada: "2030-10-30" };
+  // Un gasto apuntado a mano para diciembre antes de que entre su nómina
+  db.movimientos.push(mov({ partidaId: comida.id, fecha: "2030-11-26", mes: "2030-12", importe: 40 }));
+  assert.equal(mesEnCurso(db, "2030-11-26"), "2030-11");
+  assert.deepEqual(adelantadoAlBanco(db, "2030-11-26"), { lista: [{ mes: "2030-12", tipo: "movimientos", importe: -40 }], total: -40 });
+  db.meses["2030-12"] = { sueldo: 1200, ingresada: "2031-01-02" }; // con fecha futura aún no está en el banco
+  assert.equal(adelantadoAlBanco(db, "2030-11-26").total, -40);
+});
+
+test("lo apartado a la hucha el 30 de noviembre para diciembre cuenta como aportación de diciembre", () => {
+  const db = base();
+  db.movimientos.push(mov({ tipo: "ahorro", objetivoId: OBJETIVO_FIJO.id, fecha: "2030-10-15", importe: 50 }));
+  db.movimientos.push(mov({ tipo: "ahorro", objetivoId: OBJETIVO_FIJO.id, fecha: "2030-11-30", mes: "2030-12", importe: 30 }));
+  const dic = aportacionHucha(db, "2030-12");
+  assert.deepEqual([dic.saldoInicio, dic.apartadoMes], [50, 30]);
+  assert.equal(aportacionHucha(db, "2030-11").apartadoMes, 0);
 });

@@ -1,6 +1,6 @@
 import { Ficha } from "../lib/iconos.jsx";
 import { colorCategoria } from "../lib/iconos.jsx";
-import { eur, fechaRelativa } from "../lib/formato.js";
+import { eur, fechaRelativa, nombreMes } from "../lib/formato.js";
 import { objetivosConFijo, cuentas, cuentaDeAjuste, esAjuste } from "../lib/calculos.js";
 
 const ESTADO = {
@@ -35,7 +35,7 @@ export function FilaMovimiento({ m, db, onClick, conFecha = true }) {
       <Ficha icono={d.icono} color={d.color} size={46} />
       <span className="fila-mov-txt">
         <b>{d.titulo}</b>
-        <small>{[d.sub, conFecha && fechaRelativa(m.fecha)].filter(Boolean).join(" · ")}</small>
+        <small>{[d.sub, conFecha && fechaRelativa(m.fecha), m.mes && `cuenta para ${nombreMes(m.mes)}`].filter(Boolean).join(" · ")}</small>
       </span>
       <span className="fila-mov-imp">
         <b className={d.valor > 0 ? "positivo" : ""}>{eur(d.valor, { signo: true })}</b>

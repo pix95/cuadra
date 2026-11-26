@@ -8,7 +8,7 @@ import { Ficha, Icono, ICONOS, ICONOS_OBJETIVO, colorCategoria } from "../lib/ic
 import {
   presupuestoMensual, recibosMes, alertas, ordenar, ordenCategorias, esMensual, gastosPorPartida, movsDeMes, ahorradoObjetivo,
   FRECUENCIAS, CADA, resumenMes, estadoDe, porcentaje, acumuladoAño, anual, objetivosConFijo, OBJETIVO_FIJO, AHORRO_PRINCIPAL,
-  CUENTA_PRINCIPAL, cuentas, cuentaDeAjuste, recibosNoMensualesMes, huchaPeriodicos, proximosCobros, nominasAdelantadas,
+  CUENTA_PRINCIPAL, cuentas, cuentaDeAjuste, recibosNoMensualesMes, huchaPeriodicos, proximosCobros, adelantadoAlBanco, mesEnCurso, mesDe,
 } from "../lib/calculos.js";
 import { eur, parseImporte, aInput, nombreMes, mesActual, moverMes, hoyISO, diasEnMes, MESES_CORTOS, mayus, fechaCorta, mesCorto, r2 } from "../lib/formato.js";
 
@@ -485,7 +485,14 @@ export function HojaRecibos({ mes, cerrar }) {
   const noMensuales = recibosNoMensualesMes(db, mes);
   const sinFecha = ordenar(db.partidas.filter((p) => p.activa && p.recibo && !esMensual(p) && p.importe > 0 && !p.cobroAncla));
   const pendientes = recibos.filter((x) => !x.hecho);
-  const fecha = mes === mesActual() ? hoyISO() : mes < mesActual() ? `${mes}-${String(diasEnMes(mes)).padStart(2, "0")}` : `${mes}-01`;
+  // Hoy si es el mes del calendario o el que estás viviendo (diciembre el 30 de
+  // noviembre, con su nómina ya ingresada); el recibo cuenta para su mes
+  const fecha =
+    mes === mesActual() || (mes === mesEnCurso(db) && mes === moverMes(mesActual(), 1))
+      ? hoyISO()
+      : mes < mesActual()
+        ? `${mes}-${String(diasEnMes(mes)).padStart(2, "0")}`
+        : `${mes}-01`;
   const hucha = huchaPeriodicos(db, mes);
   const [ocupado, setOcupado] = useState(false);
 
@@ -496,7 +503,7 @@ export function HojaRecibos({ mes, cerrar }) {
     try {
       const creados = [];
       for (const p of ps) {
-        const gasto = { tipo: "gasto", fecha, importe: p.importe, partidaId: p.id, concepto: "" };
+        const gasto = { tipo: "gasto", fecha, mes, importe: p.importe, partidaId: p.id, concepto: "" };
         creados.push(esMensual(p) ? await acc.guardarMovimiento(gasto) : await acc.guardarGasto(gasto, { desdeHucha: true }));
       }
       const unico = ps.length === 1 ? creados[0] : null;
@@ -803,9 +810,9 @@ export function HojaElegirPartida({ fecha, onElegir, cerrar }) {
 export function HojaMeses({ cerrar }) {
   const { db } = useDatos();
   const ui = useUI();
-  const act = mesActual();
+  const act = mesEnCurso(db);
   const meses = useMemo(() => {
-    const conDatos = new Set([...db.movimientos.map((m) => m.fecha.slice(0, 7)), ...Object.keys(db.meses)]);
+    const conDatos = new Set([...db.movimientos.map(mesDe), ...Object.keys(db.meses)]);
     const out = [];
     for (let i = -14; i <= 3; i++) out.push(moverMes(act, i));
     conDatos.forEach((m) => !out.includes(m) && out.push(m));
@@ -945,12 +952,12 @@ export function HojaCierre({ mes, importe, fecha, cerrar }) {
 // ---------- Cuadrar una cuenta con el banco ----------
 // Escribes el saldo que ves en el banco y se crea un ajuste por la diferencia.
 // La primera vez sirve como saldo inicial.
-// Lo que debería haber en el banco según Cuadra. En la cuenta principal se
-// suman las nóminas que ya han entrado pero cuentan para un mes que aún no ha
-// empezado (la de diciembre ingresada el 29 de noviembre).
+// Lo que debería haber en el banco según Cuadra: el saldo del mes que estás
+// viviendo más lo que ya ha pasado por el banco pero cuenta para un mes que
+// aún no ha empezado (nóminas y gastos adelantados).
 export function saldoDeCuenta(db, cuenta) {
   if (cuenta !== CUENTA_PRINCIPAL.id) return ahorradoObjetivo(db, cuenta);
-  return r2(resumenMes(db, mesActual()).saldoCuenta + nominasAdelantadas(db).total);
+  return r2(resumenMes(db, mesEnCurso(db)).saldoCuenta + adelantadoAlBanco(db).total);
 }
 
 export function HojaCuadrar({ cuenta, cerrar }) {
@@ -958,7 +965,7 @@ export function HojaCuadrar({ cuenta, cerrar }) {
   const ui = useUI();
   const info = cuentas(db).find((c) => c.id === cuenta) || CUENTA_PRINCIPAL;
   const enCuadra = saldoDeCuenta(db, cuenta);
-  const adelantadas = cuenta === CUENTA_PRINCIPAL.id ? nominasAdelantadas(db) : { lista: [] };
+  const adelantadas = cuenta === CUENTA_PRINCIPAL.id ? adelantadoAlBanco(db) : { lista: [] };
   const primeraVez = !db.movimientos.some((m) => m.tipo === "ajuste" && m.objetivoId === cuenta);
   const [txt, setTxt] = useState("");
   const [error, setError] = useState("");
@@ -993,9 +1000,9 @@ export function HojaCuadrar({ cuenta, cerrar }) {
     >
       <dl className="cuadre">
         {adelantadas.lista.map((n) => (
-          <Fragment key={n.mes}>
-            <dt>Nómina de {nombreMes(n.mes)} (ya en el banco)</dt>
-            <dd>{eur(n.sueldo, { signo: true })}</dd>
+          <Fragment key={n.mes + n.tipo}>
+            <dt>{n.tipo === "nomina" ? `Nómina de ${nombreMes(n.mes)} (ya en el banco)` : `Movimientos de ${nombreMes(n.mes)} ya pagados`}</dt>
+            <dd>{eur(n.importe, { signo: true })}</dd>
           </Fragment>
         ))}
         <dt>En Cuadra</dt>

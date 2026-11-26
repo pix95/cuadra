@@ -5,7 +5,7 @@ import { useDatos, useUI } from "../store.jsx";
 import { Hoja, CampoImporte, Interruptor, Segmentado } from "../components/comunes.jsx";
 import {
   ordenar, esMensual, vehiculoPrincipal, kmEstimados, ahorradoObjetivo, OBJETIVO_FIJO, recordatorioDeMantenimiento, siguienteRecordatorio,
-  nombreRecordatorio, NOMBRES_RECORDATORIO, repostajesDe,
+  nombreRecordatorio, NOMBRES_RECORDATORIO, repostajesDe, mesParaFecha, mesDe,
 } from "../lib/calculos.js";
 import { COMBUSTIBLES, TIPOS_MANTENIMIENTO } from "../../shared/modelo.js";
 import { eur, parseImporte, aInput, hoyISO, fechaCorta, r2 } from "../lib/formato.js";
@@ -155,7 +155,9 @@ export function HojaRepostaje({ repostaje = null, vehiculoId, cerrar }) {
     if (!(imp > 0)) return setError("Escribe cuánto has pagado.");
     if (!(lit > 0)) return setError(`Escribe los ${u === "l" ? "litros" : "kWh"}.`);
     if (leerKm(km) == null) return setError("Escribe los km del cuentakilómetros.");
-    const b = { ...(mov || {}), tipo: "gasto", partidaId: mov?.partidaId || v.partidaCombustible, fecha, importe: imp, concepto: gasolinera.trim() || (mov?.concepto ?? "") };
+    // Cuenta para el mes siguiente si su nómina ya había entrado (como en Apuntar)
+    const mes = mesParaFecha(db, fecha, mov ? mesDe(mov) : null);
+    const b = { ...(mov || {}), tipo: "gasto", partidaId: mov?.partidaId || v.partidaCombustible, fecha, mes, importe: imp, concepto: gasolinera.trim() || (mov?.concepto ?? "") };
     try {
       const r = await acc.guardarGasto(b, {
         desdeHucha: Boolean(mov?.enlace),
@@ -273,7 +275,7 @@ export function HojaMantenimiento({ mantenimiento = null, vehiculoId, cerrar }) 
   async function guardar() {
     if (!partida) return setError("Elige la partida del mantenimiento en los ajustes del coche.");
     if (!(imp > 0)) return setError("Escribe cuánto ha costado.");
-    const b = { ...(mov || {}), tipo: "gasto", partidaId: partida.id, fecha, importe: imp, concepto: mov?.concepto || TIPOS_MANTENIMIENTO[tipo] + (taller.trim() ? ` · ${taller.trim()}` : "") };
+    const b = { ...(mov || {}), tipo: "gasto", partidaId: partida.id, fecha, mes: mesParaFecha(db, fecha, mov ? mesDe(mov) : null), importe: imp, concepto: mov?.concepto || TIPOS_MANTENIMIENTO[tipo] + (taller.trim() ? ` · ${taller.trim()}` : "") };
     try {
       const kmN = leerKm(km);
       const r = await acc.guardarGasto(b, {

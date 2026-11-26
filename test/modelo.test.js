@@ -109,3 +109,22 @@ test("nómina: la configuración se valida y se normaliza", () => {
   assert.deepEqual(d.ajustes.nomina, { importe: 1500, diaCorte: 25, pagasExtra: { meses: [6, 12], importe: 900 } });
   assert.throws(() => op.guardarAjustes(d, { nomina: { diaCorte: 40 } }), /día de corte/);
 });
+
+test("mes del movimiento: solo el de la fecha o el siguiente, y el de la fecha no se guarda", () => {
+  const { d, comida } = preparar(0);
+  assert.equal(op.crearMovimiento(d, { tipo: "gasto", partidaId: comida.id, fecha: "2030-11-30", mes: "2030-12", importe: 80 }).r.mes, "2030-12");
+  assert.equal(op.crearMovimiento(d, { tipo: "gasto", partidaId: comida.id, fecha: "2030-12-28", mes: "2031-01", importe: 80 }).r.mes, "2031-01", "cambio de año");
+  assert.equal(op.crearMovimiento(d, { tipo: "gasto", partidaId: comida.id, fecha: "2030-11-30", mes: "2030-11", importe: 80 }).r.mes, null);
+  assert.throws(() => op.crearMovimiento(d, { tipo: "gasto", partidaId: comida.id, fecha: "2030-11-30", mes: "2031-01", importe: 80 }), /mes de su fecha o para el siguiente/);
+  assert.equal(op.crearMovimiento(d, { tipo: "ajuste", objetivoId: CUENTA_PRINCIPAL.id, fecha: "2030-11-30", mes: "2030-12", importe: 5 }).r.mes, null, "los ajustes van por su fecha");
+  // Al cambiar la fecha al mes siguiente, deja de hacer falta
+  const { r } = op.crearMovimiento(d, { tipo: "gasto", partidaId: comida.id, fecha: "2030-11-30", mes: "2030-12", importe: 20 });
+  assert.equal(op.actualizarMovimiento(d, r.id, { fecha: "2030-12-02" }).r.mes, null);
+});
+
+test("el recibo pagado desde la hucha y su retirada cuentan para el mismo mes", () => {
+  const { d, ibi } = preparar(500);
+  const { r } = op.guardarGasto(d, { tipo: "gasto", partidaId: ibi.id, fecha: "2030-05-30", mes: "2030-06", importe: 400 }, { desdeHucha: true });
+  assert.equal(r.mes, "2030-06");
+  assert.equal(d.movimientos.find((m) => m.id === r.enlace).mes, "2030-06");
+});

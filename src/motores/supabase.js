@@ -21,7 +21,7 @@ const aFila = {
   }),
   movimientos: (m) => ({
     id: m.id, tipo: m.tipo, fecha: m.fecha, importe: m.importe, partida_id: m.partidaId, objetivo_id: m.objetivoId,
-    concepto: m.concepto, creado: m.creado, enlace: m.enlace ?? null,
+    concepto: m.concepto, creado: m.creado, enlace: m.enlace ?? null, mes: m.mes ?? null,
   }),
   meses: (x) => ({ mes: x.mes, sueldo: x.sueldo, ingresada: x.ingresada ?? null }),
   objetivos: (o) => ({ id: o.id, nombre: o.nombre, meta: o.meta, fecha: o.fecha, icono: o.icono, creado: o.creado }),
@@ -80,6 +80,7 @@ const deFila = {
     concepto: f.concepto || "",
     creado: f.creado || f.updated_at || null,
     enlace: f.enlace ?? null,
+    mes: f.mes ?? null,
   }),
   objetivos: (f) => ({ id: f.id, nombre: f.nombre, meta: num(f.meta) || 0, fecha: f.fecha || null, icono: f.icono || "hucha", creado: f.creado }),
   simulaciones: (f) => ({

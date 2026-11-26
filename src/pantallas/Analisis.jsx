@@ -5,9 +5,9 @@ import { Segmentado, Cifra, Anillo, Barra, Vacio } from "../components/comunes.j
 import { GraficoBarras } from "../components/GraficoBarras.jsx";
 import { Ficha, colorCategoria, iconoCategoria } from "../lib/iconos.jsx";
 import {
-  analisisPeriodo, moverPeriodo, resumenMes, acumuladoAño, ordenar, esMensual, estadoDe, porcentaje, anual, ordenCategorias,
+  analisisPeriodo, mesEnCurso, moverPeriodo, resumenMes, acumuladoAño, ordenar, esMensual, estadoDe, porcentaje, anual, ordenCategorias,
 } from "../lib/calculos.js";
-import { eur, pct1, nombreMes, MESES, MESES_CORTOS, DIAS_CORTOS, fechaCorta, mesActual, hoyISO, mayus, r2, diasEnMes } from "../lib/formato.js";
+import { eur, pct1, nombreMes, MESES, MESES_CORTOS, DIAS_CORTOS, fechaCorta, hoyISO, mayus, r2, diasEnMes } from "../lib/formato.js";
 
 export default function Analisis() {
   const { db } = useDatos();
@@ -232,7 +232,7 @@ function ResumenAño() {
   const { db } = useDatos();
   const ui = useUI();
   const y = ui.mes.slice(0, 4);
-  const act = mesActual();
+  const act = mesEnCurso(db);
   const filas = Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, "0")}`)
     .filter((m) => m <= act)
     .map((m) => resumenMes(db, m))

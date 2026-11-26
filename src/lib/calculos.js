@@ -44,7 +44,51 @@ export function ordenCategorias(partidas) {
 // Los ajustes ("Cuadrar con el banco", y los antiguos "inicial") cambian el
 // saldo de una cuenta pero no son gasto, ingreso ni ahorro de ningún mes.
 export const esAjuste = (m) => m.tipo === "ajuste" || m.tipo === "inicial";
-export const movsDeMes = (db, mes) => db.movimientos.filter((m) => !esAjuste(m) && m.fecha.startsWith(mes));
+// Mes al que cuenta un movimiento: el suyo si lo tiene (un gasto del 30 de
+// noviembre con la nómina de diciembre ya ingresada), si no el de la fecha
+export const mesDe = (m) => m.mes || m.fecha.slice(0, 7);
+// La fecha dentro de su mes (el gasto del 30 de noviembre que cuenta para
+// diciembre, en el día 1 de diciembre), para gráficos y series por día
+export const fechaEnMes = (m) => (m.mes && m.mes !== m.fecha.slice(0, 7) ? `${m.mes}-01` : m.fecha);
+export const movsDeMes = (db, mes) => db.movimientos.filter((m) => !esAjuste(m) && mesDe(m) === mes);
+
+// El mes que estás viviendo: el del calendario, o el siguiente en cuanto su
+// nómina está ingresada (el 29 de noviembre, con la de diciembre, es diciembre)
+export function mesEnCurso(db, hoy = hoyISO()) {
+  const actual = hoy.slice(0, 7);
+  const siguiente = moverMes(actual, 1);
+  const ing = db.meses?.[siguiente]?.ingresada;
+  return ing && ing <= hoy ? siguiente : actual;
+}
+
+// Mes que se propone para un movimiento de una fecha: el siguiente si su nómina
+// ya había entrado ese día, si no el de la fecha
+export function mesPropuesto(db, fecha) {
+  const sig = moverMes(fecha.slice(0, 7), 1);
+  const ing = db.meses?.[sig]?.ingresada;
+  return ing && fecha >= ing ? sig : fecha.slice(0, 7);
+}
+// El mes guardado si sigue valiendo para la fecha (el suyo o el siguiente); si no, el propuesto
+export const mesParaFecha = (db, fecha, mes) => (mes === fecha.slice(0, 7) || mes === moverMes(fecha.slice(0, 7), 1) ? mes : mesPropuesto(db, fecha));
+
+// Lo que el mes que viene un movimiento ya ha cambiado en el banco: nóminas y
+// movimientos de meses posteriores al que estás viviendo, con fecha de hasta hoy.
+// Cuadra no los cuenta hasta su mes, así que hay que sumarlos al comparar con el banco.
+export function adelantadoAlBanco(db, hoy = hoyISO()) {
+  const enCurso = mesEnCurso(db, hoy);
+  const lista = [];
+  for (const [mes, v] of Object.entries(db.meses)) {
+    if (mes > enCurso && v?.ingresada && v.ingresada <= hoy && v.sueldo != null) lista.push({ mes, tipo: "nomina", importe: v.sueldo, ingresada: v.ingresada });
+  }
+  const porMes = new Map();
+  for (const m of db.movimientos) {
+    if (esAjuste(m) || m.fecha > hoy || mesDe(m) <= enCurso) continue;
+    porMes.set(mesDe(m), (porMes.get(mesDe(m)) || 0) + (m.tipo === "ingreso" ? m.importe : -m.importe));
+  }
+  for (const [mes, importe] of porMes) if (Math.abs(importe) >= 0.005) lista.push({ mes, tipo: "movimientos", importe: r2(importe) });
+  lista.sort((a, b) => a.mes.localeCompare(b.mes) || (a.tipo === "nomina" ? -1 : 1));
+  return { lista, total: r2(sum(lista, (x) => x.importe)) };
+}
 
 export function gastosPorPartida(movs, partidas) {
   const ids = new Set(partidas.map((p) => p.id));
@@ -57,8 +101,7 @@ export function gastosPorPartida(movs, partidas) {
   return out;
 }
 
-export function faseMes(mes, hoy = hoyISO()) {
-  const actual = hoy.slice(0, 7);
+export function faseMes(mes, hoy = hoyISO(), actual = hoy.slice(0, 7)) {
   return mes < actual ? "pasado" : mes > actual ? "futuro" : "actual";
 }
 
@@ -88,19 +131,20 @@ export function resumenMes(db, mes, hoy = hoyISO()) {
 
   // La cuenta principal arrastra lo que sobró (o faltó) de los meses anteriores
   const arrastre = saldoCuentaAl(db, moverMes(mes, -1), hoy);
-  const ajustesMes = r2(sum(db.movimientos.filter((m) => m.tipo === "ajuste" && m.objetivoId === CUENTA_PRINCIPAL.id && m.fecha.startsWith(mes)), (m) => m.importe));
+  const ajustesMes = r2(sum(db.movimientos.filter((m) => m.tipo === "ajuste" && m.objetivoId === CUENTA_PRINCIPAL.id && mesDe(m) === mes), (m) => m.importe));
   const delMes = mes >= primerMesCuenta(db, hoy) ? disponible : 0;
   const saldoCuenta = r2(arrastre + delMes + ajustesMes);
 
   const pres = presupuestoMensual(db.partidas);
   const dias = diasEnMes(mes);
-  const fase = faseMes(mes, hoy);
-  const dia = fase === "actual" ? Number(hoy.slice(8, 10)) : fase === "pasado" ? dias : 0;
+  const fase = faseMes(mes, hoy, mesEnCurso(db, hoy));
+  // Día del mes en el que estás (diciembre en curso el 30 de noviembre: día 1)
+  const dia = fase === "actual" ? (mes === hoy.slice(0, 7) ? Number(hoy.slice(8, 10)) : mes > hoy.slice(0, 7) ? 1 : dias) : fase === "pasado" ? dias : 0;
 
   // Saldo del mes día a día (para la línea de la tarjeta)
   const porDia = new Array(dias + 1).fill(0);
   for (const m of movs) {
-    const d = Number(m.fecha.slice(8, 10));
+    const d = Number(fechaEnMes(m).slice(8, 10));
     porDia[d] += m.tipo === "ingreso" ? m.importe : -m.importe;
   }
   const serie = [];
@@ -140,7 +184,7 @@ export function recibosNoMensualesMes(db, mes) {
 // Gastos de cada partida periódica en lo que va de año (hasta el mes indicado)
 export function acumuladoAño(db, mes) {
   const año = mes.slice(0, 4);
-  const movs = db.movimientos.filter((m) => m.tipo === "gasto" && m.fecha.startsWith(año) && m.fecha.slice(0, 7) <= mes);
+  const movs = db.movimientos.filter((m) => m.tipo === "gasto" && mesDe(m).startsWith(año) && mesDe(m) <= mes);
   return gastosPorPartida(movs, db.partidas);
 }
 
@@ -205,18 +249,6 @@ export function nominaDeHoy(db, hoy = hoyISO()) {
   const mes = mesDeNomina(hoy, configNomina(db).diaCorte);
   const m = db.meses[mes];
   return { mes, sueldo: m?.sueldo ?? null, ingresada: m?.ingresada ?? null };
-}
-
-// Nóminas de meses que aún no han empezado pero que ya están en el banco (la de
-// diciembre ingresada el 29 de noviembre). Cuadra no las cuenta hasta su mes,
-// así que hay que sumarlas al comparar con el saldo del banco.
-export function nominasAdelantadas(db, hoy = hoyISO()) {
-  const actual = hoy.slice(0, 7);
-  const lista = Object.entries(db.meses)
-    .filter(([mes, v]) => mes > actual && v?.ingresada && v.ingresada <= hoy && v.sueldo != null)
-    .map(([mes, v]) => ({ mes, sueldo: v.sueldo, ingresada: v.ingresada }))
-    .sort((a, b) => a.mes.localeCompare(b.mes));
-  return { lista, total: r2(sum(lista, (x) => x.sueldo)) };
 }
 
 // Avisos para la campana
@@ -284,8 +316,12 @@ export const diasEntre = (a, b) => Math.round((fechaDe(b) - fechaDe(a)) / 864e5)
 
 // Gastos de un periodo, comparados con el anterior y con el presupuesto
 export function analisisPeriodo(db, tipo, ancla, hoy = hoyISO()) {
+  // Con la nómina del mes que viene ya ingresada, ese mes ya ha empezado
+  if (tipo !== "semana" && mesEnCurso(db, hoy) > hoy.slice(0, 7)) hoy = `${mesEnCurso(db, hoy)}-01`;
   const { inicio, fin } = rangoPeriodo(tipo, ancla);
-  const gastos = db.movimientos.filter((m) => m.tipo === "gasto");
+  // En la semana cuenta la fecha real; en el mes y el año, el mes al que cuenta
+  const fechaDe_ = tipo === "semana" ? (m) => m.fecha : fechaEnMes;
+  const gastos = db.movimientos.filter((m) => m.tipo === "gasto").map((m) => ({ ...m, fecha: fechaDe_(m) }));
   const enRango = (a, b) => gastos.filter((m) => m.fecha >= a && m.fecha <= b);
   const movs = enRango(inicio, fin);
   const total = r2(sum(movs, (m) => m.importe));
@@ -377,7 +413,7 @@ const ultimoDia = (mes) => `${mes}-${String(diasEnMes(mes)).padStart(2, "0")}`;
 
 // Primer mes con datos (sueldo o movimientos)
 export function primerMes(db, hoy = hoyISO()) {
-  const meses = [...Object.keys(db.meses), ...db.movimientos.filter((m) => !esAjuste(m)).map((m) => m.fecha.slice(0, 7))].filter((m) => m <= hoy.slice(0, 7)).sort();
+  const meses = [...Object.keys(db.meses), ...db.movimientos.filter((m) => !esAjuste(m)).map(mesDe)].filter((m) => m <= mesEnCurso(db, hoy)).sort();
   return meses[0] || hoy.slice(0, 7);
 }
 
@@ -393,7 +429,7 @@ export function primerMesCuenta(db, hoy = hoyISO()) {
 function disponibleMes(db, mes) {
   let total = db.meses[mes]?.sueldo ?? 0;
   for (const m of db.movimientos) {
-    if (esAjuste(m) || !m.fecha.startsWith(mes)) continue;
+    if (esAjuste(m) || mesDe(m) !== mes) continue;
     total += m.tipo === "ingreso" ? m.importe : -m.importe;
   }
   return total;
@@ -465,9 +501,10 @@ export function aportacionHucha(db, mes = hoyISO().slice(0, 7)) {
   // Saldo "de partida" del mes: lo de antes + los ajustes y las retiradas a mano de
   // este mes (cambian lo que hay). No incluye lo apartado este mes ni las
   // retiradas por pagar recibos (esos recibos ya están en los cobros del mes).
-  const delMes = db.movimientos.filter((m) => m.fecha.startsWith(mes) && ((m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id) || (esAjuste(m) && cuentaDeAjuste(m) === OBJETIVO_FIJO.id)));
+  const deLaHucha = db.movimientos.filter((m) => (m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id) || (esAjuste(m) && cuentaDeAjuste(m) === OBJETIVO_FIJO.id));
+  const delMes = deLaHucha.filter((m) => mesDe(m) === mes);
   const saldoInicio = r2(
-    ahorradoObjetivo(db, OBJETIVO_FIJO.id, `${mes}-01`) + sum(delMes.filter((m) => esAjuste(m) || (m.importe < 0 && !m.enlace)), (m) => m.importe)
+    sum(deLaHucha.filter((m) => mesDe(m) < mes), (m) => m.importe) + sum(delMes.filter((m) => esAjuste(m) || (m.importe < 0 && !m.enlace)), (m) => m.importe)
   );
   const aportes = delMes.filter((m) => m.tipo === "ahorro" && m.importe > 0 && !m.enlace);
   const apartadoMes = r2(sum(aportes, (m) => m.importe));
@@ -679,7 +716,7 @@ export function costeCoche(db, v, hoy = hoyISO()) {
 // Combustible de un mes frente a lo presupuestado en su partida
 export function combustibleMes(db, v, mes) {
   const p = db.partidas.find((x) => x.id === v.partidaCombustible);
-  const gastado = r2(sum(db.movimientos.filter((m) => m.tipo === "gasto" && m.partidaId === v.partidaCombustible && m.fecha.startsWith(mes)), (m) => m.importe));
+  const gastado = r2(sum(db.movimientos.filter((m) => m.tipo === "gasto" && m.partidaId === v.partidaCombustible && mesDe(m) === mes), (m) => m.importe));
   return { partida: p || null, gastado, presupuesto: p ? r2(previstoMes(p)) : null };
 }
 
@@ -757,7 +794,7 @@ export function resumenCoche(db, v, hoy = hoyISO()) {
     precios: preciosLitro(db, v, hoy),
     recordatorios: recordatoriosCoche(db, v, hoy),
     kmHoy: kmEstimados(db, v, hoy),
-    combustibleMes: combustibleMes(db, v, hoy.slice(0, 7)),
+    combustibleMes: combustibleMes(db, v, mesEnCurso(db, hoy)),
   };
 }
 
