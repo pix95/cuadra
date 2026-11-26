@@ -645,6 +645,21 @@ export const op = {
     };
   },
 
+  // «Empezar de cero»: borra la historia (movimientos, nóminas de cada mes,
+  // repostajes y mantenimientos) y conserva la configuración (partidas,
+  // objetivos, coche y recordatorios, ajustes y simulaciones).
+  empezarDeCero(d) {
+    const cambios = [];
+    const r = { movimientos: d.movimientos.length, meses: Object.keys(d.meses).length, repostajes: d.repostajes.length, mantenimientos: d.mantenimientos.length };
+    for (const t of ["mantenimientos", "repostajes", "movimientos"]) {
+      for (const x of d[t]) cambios.push(quitar(t, x.id));
+      d[t] = [];
+    }
+    for (const mes of Object.keys(d.meses)) cambios.push(quitar("meses", mes));
+    d.meses = {};
+    return hecho(r, ...cambios);
+  },
+
   // ---------- Coche ----------
   crearVehiculo(d, b = {}) {
     const v = { ...validarVehiculo(b, d), id: idNuevo(b.id, d.vehiculos), creado: typeof b.creado === "string" ? b.creado : ahora() };

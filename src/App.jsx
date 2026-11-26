@@ -15,7 +15,7 @@ import Ahorros, { HojaHucha } from "./pantallas/Ahorros.jsx";
 import Apuntar from "./pantallas/Apuntar.jsx";
 import Acceso from "./pantallas/Acceso.jsx";
 import { HojaNomina, HojaConfigNomina } from "./pantallas/Nomina.jsx";
-import { HojaCuadrar, HojaAjuste, HojaCierre, HojaSueldo, HojaPartida, HojaObjetivo, HojaAlertas, HojaRecibos, HojaAjustes, HojaElegirPartida, HojaMeses, HojaConfirmar } from "./pantallas/Hojas.jsx";
+import { HojaEmpezarDeCero, HojaCuadrar, HojaAjuste, HojaCierre, HojaSueldo, HojaPartida, HojaObjetivo, HojaAlertas, HojaRecibos, HojaAjustes, HojaElegirPartida, HojaMeses, HojaConfirmar } from "./pantallas/Hojas.jsx";
 
 const PANTALLAS = { inicio: Inicio, movimientos: Movimientos, analisis: Analisis, presupuesto: Presupuesto, ahorros: Ahorros, simulador: Simulador, coche: Coche };
 const CAPAS = {
@@ -35,6 +35,7 @@ const CAPAS = {
   hucha: HojaHucha,
   cuadrar: HojaCuadrar,
   ajuste: HojaAjuste,
+  empezarDeCero: HojaEmpezarDeCero,
   vehiculo: HojaVehiculo,
   repostaje: HojaRepostaje,
   mantenimiento: HojaMantenimiento,

@@ -63,6 +63,7 @@ export function motorServidor() {
     guardarRecordatorio: (x) => (existe("recordatorios", x.id) ? remoto("actualizarRecordatorio", x.id, x) : remoto("crearRecordatorio", x)),
     borrarRecordatorio: (id) => remoto("borrarRecordatorio", id),
     borrarRegistroCoche: (tabla, id) => remoto("borrarRegistroCoche", tabla, id),
+    empezarDeCero: () => remoto("empezarDeCero"),
     guardarPartida: guardarEn("partidas"),
     borrarPartida: (id, opciones) => remoto("borrarPartida", id, opciones),
     guardarObjetivo: guardarEn("objetivos"),

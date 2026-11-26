@@ -218,8 +218,11 @@ export function motorSupabase({ url, clave, cliente = null }) {
         const filas = cola.slice(0, lote).map((x) => ({ ...aFila[x.tabla](x.fila), user_id: usuario.id, updated_at: ahora }));
         r = await sb.from(o.tabla).upsert(filas, { onConflict: CONFLICTO[o.tabla] });
       } else {
+        // Agrupa los borrados seguidos de la misma tabla (empezar de cero borra muchos)
+        while (lote < cola.length && lote < 200 && cola[lote].tabla === o.tabla && cola[lote].tipo === "delete") lote++;
+        const ids = cola.slice(0, lote).map((x) => x.id);
         const q = sb.from(o.tabla).delete().eq("user_id", usuario.id);
-        r = await (o.tabla === "meses" ? q.eq("mes", o.id) : q.eq("id", o.id));
+        r = await (o.tabla === "meses" ? q.in("mes", ids) : q.in("id", ids));
       }
       if (r.error) {
         // Datos que la base de datos rechaza: reintentar no lo arreglaría
@@ -479,6 +482,7 @@ export function motorSupabase({ url, clave, cliente = null }) {
     guardarRecordatorio: guardar("recordatorios", "Recordatorio"),
     borrarRecordatorio: borrar("Recordatorio"),
     borrarRegistroCoche: (tabla, id) => ejecutar(op.borrarRegistroCoche, tabla, id),
+    empezarDeCero: () => ejecutar(op.empezarDeCero),
     guardarPartida: guardar("partidas", "Partida"),
     borrarPartida: (id, opciones) => ejecutar(op.borrarPartida, id, opciones),
     guardarObjetivo: guardar("objetivos", "Objetivo"),

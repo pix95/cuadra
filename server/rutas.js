@@ -35,7 +35,7 @@ for (const [ruta, nombre] of colecciones) {
 
 // Operaciones que tocan varios movimientos a la vez (gasto + retirada de la hucha…)
 const OPS_COMPUESTAS = new Set([
-  "guardarGasto", "borrarMovimiento", "restaurarMovimientos", "borrarPartida",
+  "guardarGasto", "borrarMovimiento", "restaurarMovimientos", "borrarPartida", "empezarDeCero",
   // Coche
   "crearVehiculo", "actualizarVehiculo", "borrarVehiculo", "crearRecordatorio", "actualizarRecordatorio", "borrarRecordatorio", "borrarRegistroCoche",
 ]);

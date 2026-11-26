@@ -879,6 +879,16 @@ export function HojaAjustes({ cerrar }) {
           <Upload size={16} /> Importar CSV
         </button>
         <input ref={archivo} type="file" accept=".csv,text/csv" hidden onChange={importar} />
+        <button
+          type="button"
+          className="btn btn-texto peligro-texto"
+          onClick={() => {
+            cerrar();
+            ui.abrir("empezarDeCero");
+          }}
+        >
+          <Trash2 size={16} /> Empezar de cero
+        </button>
       </div>
       <p className="ayuda">Acepta el CSV que exporta Cuadra (también el de la versión anterior). Si importas dos veces el mismo archivo no se duplica nada.</p>
       {resumen && (
@@ -977,6 +987,81 @@ export function HojaElegirPartida({ fecha, onElegir, cerrar }) {
         </div>
       ))}
       {!activas.length && <p className="ayuda">No hay ninguna partida con ese nombre.</p>}
+    </Hoja>
+  );
+}
+
+// ---------- Empezar de cero ----------
+export function HojaEmpezarDeCero({ cerrar }) {
+  const { db, acc } = useDatos();
+  const ui = useUI();
+  const [txt, setTxt] = useState("");
+  const [copia, setCopia] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+  const [error, setError] = useState("");
+  const hoy = hoyISO();
+  const listo = txt.trim().toUpperCase() === "BORRAR";
+  const n = (x) => x.toLocaleString("es-ES");
+
+  async function borrar() {
+    if (!listo || ocupado) return;
+    setOcupado(true);
+    try {
+      const r = await acc.empezarDeCero();
+      cerrar();
+      ui.setMes(mesEnCurso({ ...db, meses: {} }));
+      ui.irA("inicio");
+      ui.avisar(`Hecho: ${n(r?.movimientos ?? 0)} movimientos borrados. Usa «Cuadrar con el banco» para fijar tus saldos reales.`);
+    } catch (e) {
+      setError(e.message);
+      setOcupado(false);
+    }
+  }
+
+  return (
+    <Hoja
+      titulo="Empezar de cero"
+      subtitulo="Para empezar a usar Cuadra con datos 100 % reales. Se borra la historia y se conserva la configuración."
+      onCerrar={cerrar}
+      pie={
+        <button type="button" className="btn btn-peligro" disabled={!listo || ocupado} onClick={borrar}>
+          <Trash2 size={16} /> {ocupado ? "Borrando…" : "Borrar todo"}
+        </button>
+      }
+    >
+      <dl className="cuadre">
+        <dt>Movimientos (gastos, ingresos, ahorros y ajustes)</dt>
+        <dd>{n(db.movimientos.length)}</dd>
+        <dt>Nóminas de cada mes</dt>
+        <dd>{n(Object.keys(db.meses).length)}</dd>
+        {(db.repostajes.length > 0 || db.mantenimientos.length > 0) && (
+          <>
+            <dt>Repostajes y mantenimientos</dt>
+            <dd>{n(db.repostajes.length + db.mantenimientos.length)}</dd>
+          </>
+        )}
+      </dl>
+      <p className="ayuda">
+        <b>Se conserva:</b> el presupuesto con todas sus partidas, tus objetivos de ahorro (vacíos), el coche y sus recordatorios, la configuración de la nómina y las simulaciones.
+      </p>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => {
+          descargar(`cuadra-copia-${hoy}.json`, JSON.stringify(db, null, 2), "application/json");
+          setCopia(true);
+        }}
+      >
+        <FileJson size={16} /> {copia ? "Copia descargada" : "Antes, descargar una copia completa"}
+      </button>
+      <label className="campo">
+        <span>Escribe BORRAR para confirmar (no se puede deshacer)</span>
+        <input value={txt} onChange={(e) => setTxt(e.target.value)} placeholder="BORRAR" autoCapitalize="characters" autoComplete="off" />
+      </label>
+      <p className="ayuda tenue">
+        Se borra en la nube y en todos tus dispositivos. Después: «Cuadrar con el banco» en la cuenta principal, en Ahorros principales y en la hucha, e ingresa la nómina del mes.
+      </p>
+      {error && <p className="error">{error}</p>}
     </Hoja>
   );
 }

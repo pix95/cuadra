@@ -156,3 +156,16 @@ test("partida en meses concretos: hay que elegir meses con importe", () => {
   // Pasar a otra frecuencia quita los meses
   assert.equal(op.actualizarPartida(d, r.id, { frecuencia: "Anual", importe: 100, calendario: null }).r.calendario, null);
 });
+
+test("empezar de cero: borra la historia y conserva la configuración", () => {
+  const { d, comida } = preparar(300);
+  op.ponerSueldo(d, "2030-05", 1500, { ingresada: "2030-04-28" });
+  op.crearMovimiento(d, { tipo: "gasto", partidaId: comida.id, fecha: "2030-05-03", importe: 20 });
+  const { r: o } = op.crearObjetivo(d, { nombre: "Viaje", meta: 500 });
+  const { r, cambios } = op.empezarDeCero(d);
+  assert.deepEqual([r.movimientos, r.meses], [2, 1]);
+  assert.deepEqual([d.movimientos.length, Object.keys(d.meses).length], [0, 0]);
+  assert.equal(d.partidas.length, 2, "las partidas se quedan");
+  assert.equal(d.objetivos[0].id, o.id, "los objetivos se quedan");
+  assert.ok(cambios.every((c) => c.tipo === "delete"));
+})

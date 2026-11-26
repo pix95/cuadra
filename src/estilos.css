@@ -3843,3 +3843,8 @@ button.recibo-ok:active {
 .mes-importe .campo-importe input {
   min-height: 44px;
 }
+
+/* Ajustes: «Empezar de cero» en rojo suave */
+.peligro-texto {
+  color: #ff98a8;
+}
