@@ -34,7 +34,11 @@ for (const [ruta, nombre] of colecciones) {
 }
 
 // Operaciones que tocan varios movimientos a la vez (gasto + retirada de la hucha…)
-const OPS_COMPUESTAS = new Set(["guardarGasto", "borrarMovimiento", "restaurarMovimientos"]);
+const OPS_COMPUESTAS = new Set([
+  "guardarGasto", "borrarMovimiento", "restaurarMovimientos",
+  // Coche
+  "crearVehiculo", "actualizarVehiculo", "borrarVehiculo", "crearRecordatorio", "actualizarRecordatorio", "borrarRecordatorio", "borrarRegistroCoche",
+]);
 rutas.post("/op/:nombre", (req, res) => {
   const { nombre } = req.params;
   if (!OPS_COMPUESTAS.has(nombre)) return res.status(404).json({ error: "Esa operación no existe." });

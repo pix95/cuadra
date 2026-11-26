@@ -107,6 +107,9 @@ export function normalizarPartida(p, i = 0) {
     activa: p.activa !== false,
     // Mes del próximo cobro de un recibo no mensual ("AAAA-MM"); sin él, es un fondo sin fecha
     cobroAncla: (p.frecuencia ?? "Mensual") !== "Mensual" && esMes(p.cobroAncla) ? p.cobroAncla : null,
+    // Partida «del coche» (seguro, impuesto…): de qué vehículo y qué parte es suya
+    vehiculoId: UUID.test(String(p.vehiculoId ?? "")) ? String(p.vehiculoId) : null,
+    pctCoche: UUID.test(String(p.vehiculoId ?? "")) ? Math.min(100, Math.max(1, Math.round(Number(p.pctCoche) || 100))) : null,
   };
 }
 
@@ -134,6 +137,10 @@ export const estadoVacio = () => ({
   movimientos: [],
   objetivos: [],
   simulaciones: [],
+  vehiculos: [],
+  repostajes: [],
+  mantenimientos: [],
+  recordatorios: [],
 });
 
 export function semilla(inicial) {
@@ -153,6 +160,7 @@ export function migrar(d) {
   d.movimientos = Array.isArray(d.movimientos) ? d.movimientos : [];
   d.objetivos = Array.isArray(d.objetivos) ? d.objetivos : [];
   d.simulaciones = Array.isArray(d.simulaciones) ? d.simulaciones : [];
+  for (const t of TABLAS_COCHE) d[t] = Array.isArray(d[t]) ? d[t] : [];
   return d;
 }
 
@@ -173,6 +181,14 @@ function validarPartida(b, base = {}) {
   if ("cobroAncla" in b) {
     if (b.cobroAncla && !esMes(b.cobroAncla)) falla("El mes del próximo cobro no es válido.");
     p.cobroAncla = b.cobroAncla || null;
+  }
+  if ("vehiculoId" in b) {
+    if (b.vehiculoId && !UUID.test(String(b.vehiculoId))) falla("El vehículo no es válido.");
+    p.vehiculoId = b.vehiculoId || null;
+  }
+  if ("pctCoche" in b && b.pctCoche != null && b.pctCoche !== "") {
+    const n = numero(b.pctCoche, "El porcentaje del coche", { min: 1, max: 100 });
+    p.pctCoche = Math.round(n);
   }
   return p;
 }
@@ -266,6 +282,108 @@ function validarSimulacion(b, base = {}) {
   return s;
 }
 
+// ---------- Coche ----------
+export const TABLAS_COCHE = ["vehiculos", "repostajes", "mantenimientos", "recordatorios"];
+export const COMBUSTIBLES = { gasolina: "Gasolina", diesel: "Diésel", hibrido: "Híbrido", electrico: "Eléctrico" };
+export const TIPOS_MANTENIMIENTO = { revision: "Revisión", itv: "ITV", aceite: "Aceite", neumaticos: "Neumáticos", reparacion: "Reparación", otro: "Otro" };
+export const TIPOS_RECORDATORIO = { itv: "ITV", revision: "Revisión", seguro: "Seguro", impuesto: "Impuesto de circulación", aceite: "Aceite", otro: "Otro" };
+const fechaTxt = (f) => f.split("-").reverse().join("/");
+const kmTxt = (n) => `${Math.round(n).toLocaleString("es-ES")} km`;
+const kmValidos = (v, campo) => Math.round(numero(v, campo, { min: 0, max: 9999999 }));
+
+function validarVehiculo(b, d, base = {}) {
+  const v = { ...base };
+  if ("nombre" in b || !base.id) v.nombre = texto(b.nombre, "El nombre", { max: 40 }) || "Mi coche";
+  if ("combustible" in b || !base.id) {
+    const c = b.combustible ?? "gasolina";
+    if (!(c in COMBUSTIBLES)) falla("Combustible no válido.");
+    v.combustible = c;
+  }
+  if ("kmIniciales" in b || !base.id) v.kmIniciales = kmValidos(b.kmIniciales ?? 0, "Los km");
+  for (const k of ["partidaCombustible", "partidaMantenimiento"]) {
+    if (k in b || !base.id) {
+      const id = b[k] || null;
+      if (id && !d.partidas.some((p) => p.id === id)) falla("La partida elegida no existe.");
+      v[k] = id;
+    }
+  }
+  if ("activo" in b || !base.id) v.activo = b.activo !== false;
+  return v;
+}
+
+function validarRepostaje(b, d, base = {}) {
+  const r = { ...base, ...b };
+  if (!d.vehiculos.some((v) => v.id === r.vehiculoId)) falla("Elige el vehículo del repostaje.");
+  if (!esFecha(r.fecha)) falla("La fecha del repostaje no es válida.");
+  return {
+    id: r.id,
+    vehiculoId: r.vehiculoId,
+    fecha: r.fecha,
+    km: kmValidos(r.km, "Los km del cuentakilómetros"),
+    litros: numero(r.litros, "Los litros", { min: 0.01, max: 2000 }),
+    importe: numero(r.importe, "El importe", { min: -1e7, max: 1e7 }),
+    lleno: r.lleno !== false,
+    gasolinera: texto(r.gasolinera, "La gasolinera", { max: 60 }),
+    movimientoId: UUID.test(String(r.movimientoId ?? "")) ? String(r.movimientoId) : null,
+  };
+}
+
+// Los km no pueden ir hacia atrás: ni menos que el repostaje anterior ni más
+// que el siguiente del mismo vehículo.
+function comprobarKm(d, r) {
+  for (const o of d.repostajes) {
+    if (o.id === r.id || o.vehiculoId !== r.vehiculoId) continue;
+    if (o.fecha < r.fecha && o.km > r.km)
+      falla(`Los km (${kmTxt(r.km)}) no pueden ser menos que los del repostaje anterior, del ${fechaTxt(o.fecha)} (${kmTxt(o.km)}). Revisa el cuentakilómetros o la fecha.`);
+    if (o.fecha > r.fecha && o.km < r.km)
+      falla(`Los km (${kmTxt(r.km)}) no pueden ser más que los del repostaje siguiente, del ${fechaTxt(o.fecha)} (${kmTxt(o.km)}). Revisa el cuentakilómetros o la fecha.`);
+  }
+}
+
+function validarMantenimiento(b, d, base = {}) {
+  const m = { ...base, ...b };
+  if (!d.vehiculos.some((v) => v.id === m.vehiculoId)) falla("Elige el vehículo del mantenimiento.");
+  if (!esFecha(m.fecha)) falla("La fecha del mantenimiento no es válida.");
+  const tipo = m.tipo || "otro";
+  if (!(tipo in TIPOS_MANTENIMIENTO)) falla("Tipo de mantenimiento no válido.");
+  return {
+    id: m.id,
+    vehiculoId: m.vehiculoId,
+    fecha: m.fecha,
+    km: m.km == null || m.km === "" ? null : kmValidos(m.km, "Los km"),
+    tipo,
+    importe: numero(m.importe, "El importe", { min: -1e7, max: 1e7 }),
+    taller: texto(m.taller, "El taller", { max: 60 }),
+    notas: texto(m.notas, "Las notas", { max: 300 }),
+    movimientoId: UUID.test(String(m.movimientoId ?? "")) ? String(m.movimientoId) : null,
+  };
+}
+
+function validarRecordatorio(b, d, base = {}) {
+  const r = { ...base, ...b };
+  if (!d.vehiculos.some((v) => v.id === r.vehiculoId)) falla("Elige el vehículo del recordatorio.");
+  const tipo = r.tipo || "otro";
+  if (!(tipo in TIPOS_RECORDATORIO)) falla("Tipo de recordatorio no válido.");
+  const vacio = (x) => x == null || x === "";
+  if (!vacio(r.proximaFecha) && !esFecha(r.proximaFecha)) falla("La fecha del recordatorio no es válida.");
+  const out = {
+    id: r.id,
+    vehiculoId: r.vehiculoId,
+    tipo,
+    nota: texto(r.nota, "La nota", { max: 60 }),
+    proximaFecha: vacio(r.proximaFecha) ? null : r.proximaFecha,
+    proximosKm: vacio(r.proximosKm) ? null : kmValidos(r.proximosKm, "Los km"),
+    repetirMeses: vacio(r.repetirMeses) ? null : Math.round(numero(r.repetirMeses, "Cada cuántos meses", { min: 1, max: 240 })),
+    repetirKm: vacio(r.repetirKm) ? null : kmValidos(r.repetirKm, "Cada cuántos km"),
+  };
+  if (out.proximaFecha == null && out.proximosKm == null) falla("Pon una fecha, unos km o las dos cosas.");
+  return out;
+}
+
+// Copias marcadas con su tabla, para que «Deshacer» sepa dónde devolverlas
+const marcar = (tabla, x) => ({ ...x, _tabla: tabla });
+const TABLAS_ENLAZADAS = ["repostajes", "mantenimientos"];
+
 // ---------- Operaciones ----------
 const subir = (tabla, fila) => ({ tabla, tipo: "upsert", id: tabla === "meses" ? fila.mes : tabla === "ajustes" ? "yo" : fila.id, fila: { ...fila } });
 const quitar = (tabla, id) => ({ tabla, tipo: "delete", id });
@@ -332,7 +450,16 @@ export const op = {
     const ids = [m.id, ...(otro ? [otro.id] : [])];
     const borrados = d.movimientos.filter((x) => ids.includes(x.id)).map((x) => ({ ...x }));
     d.movimientos = d.movimientos.filter((x) => !ids.includes(x.id));
-    return hecho({ ok: true, borrados }, ...ids.map((i) => quitar("movimientos", i)));
+    const cambios = ids.map((i) => quitar("movimientos", i));
+    // El repostaje o el mantenimiento del gasto se van con él
+    for (const t of TABLAS_ENLAZADAS) {
+      for (const x of d[t].filter((x) => ids.includes(x.movimientoId))) {
+        borrados.push(marcar(t, x));
+        cambios.push(quitar(t, x.id));
+      }
+      d[t] = d[t].filter((x) => !ids.includes(x.movimientoId));
+    }
+    return hecho({ ok: true, borrados }, ...cambios);
   },
 
   // Vuelve a dejar unos movimientos como estaban (para «Deshacer»): los que
@@ -344,11 +471,16 @@ export const op = {
     quitarIds = Array.isArray(quitarIds) ? quitarIds : [];
     const cambios = [];
     for (const id of quitarIds) {
-      if (d.movimientos.some((m) => m.id === id)) {
-        d.movimientos = d.movimientos.filter((m) => m.id !== id);
-        cambios.push(quitar("movimientos", id));
+      for (const t of ["movimientos", ...TABLAS_ENLAZADAS]) {
+        if (d[t].some((m) => m.id === id)) {
+          d[t] = d[t].filter((m) => m.id !== id);
+          cambios.push(quitar(t, id));
+        }
       }
     }
+    // Primero los movimientos y después lo del coche (en la cola, por orden)
+    const coche = lista.filter((x) => TABLAS_ENLAZADAS.includes(x?._tabla));
+    lista = lista.filter((x) => !TABLAS_ENLAZADAS.includes(x?._tabla));
     for (const x of lista) {
       const i = d.movimientos.findIndex((m) => m.id === x.id);
       const m = { ...validarMovimiento(x, d, i >= 0 ? d.movimientos[i] : {}), id: x.id, creado: x.creado || ahora() };
@@ -356,18 +488,59 @@ export const op = {
       else d.movimientos.push(m);
       cambios.push(subir("movimientos", m));
     }
+    for (const { _tabla: t, ...x } of coche) {
+      if (!UUID.test(String(x.id))) falla("Identificador no válido.");
+      const val = t === "repostajes" ? validarRepostaje(x, d) : validarMantenimiento(x, d);
+      const i = d[t].findIndex((y) => y.id === x.id);
+      if (i >= 0) d[t][i] = val;
+      else d[t].push(val);
+      cambios.push(subir(t, val));
+    }
     return hecho({ ok: true }, ...cambios);
   },
 
   // Guarda un gasto (nuevo o corregido). Si es de una partida no mensual y se
   // paga desde la hucha, crea o actualiza a la vez la retirada de «Recibos no
   // mensuales» por lo que la hucha pueda cubrir, enlazada con el gasto.
+  //
+  // opciones.repostaje / opciones.mantenimiento: { vehiculoId, km, litros… }
+  // crea o actualiza el registro del coche enlazado al gasto; null lo quita; sin
+  // pasarlo, el que hubiera sigue con la fecha y el importe del gasto.
+  // Devuelve también "deshacer": cómo estaba todo y qué se ha creado.
   guardarGasto(d, b = {}, opciones) {
     const desdeHucha = Boolean(opciones?.desdeHucha);
     const existente = b.id && d.movimientos.find((m) => m.id === b.id);
+    const viejos = {};
+    for (const t of TABLAS_ENLAZADAS) viejos[t] = existente ? d[t].find((x) => x.movimientoId === existente.id) || null : null;
+    const antes = existente
+      ? [
+          { ...existente },
+          ...d.movimientos.filter((m) => existente.enlace && m.id === existente.enlace).map((m) => ({ ...m })),
+          ...TABLAS_ENLAZADAS.filter((t) => viejos[t]).map((t) => marcar(t, viejos[t])),
+        ]
+      : [];
     const gasto = existente ? { ...existente, ...validarMovimiento(b, d, existente) } : { ...validarMovimiento(b, d), id: idNuevo(b.id, d.movimientos), creado: ahora() };
     if (gasto.tipo !== "gasto") falla("Solo los gastos se pueden pagar desde la hucha.");
     const partida = d.partidas.find((p) => p.id === gasto.partidaId);
+
+    // Registros del coche: se validan antes de tocar nada
+    const nuevosCoche = {};
+    for (const [t, clave] of [["repostajes", "repostaje"], ["mantenimientos", "mantenimiento"]]) {
+      const o = opciones?.[clave];
+      const viejo = viejos[t];
+      if (o === null || (o === undefined && !viejo)) {
+        nuevosCoche[t] = null;
+        continue;
+      }
+      const base = { ...(viejo || { id: uid() }), ...(o || {}), fecha: gasto.fecha, importe: gasto.importe, movimientoId: gasto.id };
+      if (!base.vehiculoId) {
+        const v = d.vehiculos.find((v) => v[clave === "repostaje" ? "partidaCombustible" : "partidaMantenimiento"] === gasto.partidaId) || d.vehiculos[0];
+        base.vehiculoId = v?.id;
+      }
+      const val = t === "repostajes" ? validarRepostaje(base, d) : validarMantenimiento(base, d);
+      if (t === "repostajes") comprobarKm(d, val);
+      nuevosCoche[t] = val;
+    }
     const retiradaVieja = gasto.enlace && d.movimientos.find((m) => m.id === gasto.enlace);
     const usarHucha = desdeHucha && partida && partida.frecuencia !== "Mensual" && gasto.importe > 0;
     const deHucha = usarHucha ? r2(Math.min(gasto.importe, Math.max(0, saldoHucha(d, retiradaVieja ? [retiradaVieja.id] : [])))) : 0;
@@ -399,7 +572,85 @@ export const op = {
     if (existente) Object.assign(existente, gasto);
     else d.movimientos.push(gasto);
     cambios.unshift(subir("movimientos", gasto));
-    return { r: { ...gasto, deHucha, deCuenta: r2(gasto.importe - deHucha) }, cambios };
+
+    const creados = antes.some((m) => m.id === gasto.enlace) || !gasto.enlace ? [] : [gasto.enlace];
+    for (const t of TABLAS_ENLAZADAS) {
+      const viejo = viejos[t];
+      const nuevo = nuevosCoche[t];
+      if (nuevo) {
+        const i = d[t].findIndex((x) => x.id === nuevo.id);
+        if (i >= 0) d[t][i] = nuevo;
+        else d[t].push(nuevo);
+        cambios.push(subir(t, nuevo));
+        if (!viejo) creados.push(nuevo.id);
+      } else if (viejo) {
+        d[t] = d[t].filter((x) => x.id !== viejo.id);
+        cambios.push(quitar(t, viejo.id));
+      }
+    }
+    return {
+      r: {
+        ...gasto,
+        deHucha,
+        deCuenta: r2(gasto.importe - deHucha),
+        repostaje: nuevosCoche.repostajes,
+        mantenimiento: nuevosCoche.mantenimientos,
+        deshacer: { antes, quitar: creados },
+      },
+      cambios,
+    };
+  },
+
+  // ---------- Coche ----------
+  crearVehiculo(d, b = {}) {
+    const v = { ...validarVehiculo(b, d), id: idNuevo(b.id, d.vehiculos), creado: typeof b.creado === "string" ? b.creado : ahora() };
+    d.vehiculos.push(v);
+    return hecho(v, subir("vehiculos", v));
+  },
+  actualizarVehiculo(d, id, b = {}) {
+    const actual = buscar(d.vehiculos, id, "ese vehículo");
+    Object.assign(actual, validarVehiculo(b, d, actual));
+    return hecho(actual, subir("vehiculos", actual));
+  },
+  // Borra el vehículo con sus repostajes, mantenimientos y recordatorios; los
+  // gastos se quedan en Cuadra y sus partidas dejan de ser «del coche».
+  borrarVehiculo(d, id) {
+    buscar(d.vehiculos, id, "ese vehículo");
+    const cambios = [];
+    for (const t of ["repostajes", "mantenimientos", "recordatorios"]) {
+      for (const x of d[t].filter((x) => x.vehiculoId === id)) cambios.push(quitar(t, x.id));
+      d[t] = d[t].filter((x) => x.vehiculoId !== id);
+    }
+    for (const p of d.partidas.filter((p) => p.vehiculoId === id)) {
+      Object.assign(p, { vehiculoId: null, pctCoche: null });
+      cambios.push(subir("partidas", p));
+    }
+    d.vehiculos = d.vehiculos.filter((v) => v.id !== id);
+    cambios.push(quitar("vehiculos", id));
+    return hecho({ ok: true }, ...cambios);
+  },
+  crearRecordatorio(d, b = {}) {
+    const r = { ...validarRecordatorio(b, d), id: idNuevo(b.id, d.recordatorios) };
+    d.recordatorios.push(r);
+    return hecho(r, subir("recordatorios", r));
+  },
+  actualizarRecordatorio(d, id, b = {}) {
+    const actual = buscar(d.recordatorios, id, "ese recordatorio");
+    Object.assign(actual, validarRecordatorio(b, d, actual), { id });
+    return hecho(actual, subir("recordatorios", actual));
+  },
+  borrarRecordatorio(d, id) {
+    buscar(d.recordatorios, id, "ese recordatorio");
+    d.recordatorios = d.recordatorios.filter((r) => r.id !== id);
+    return hecho({ ok: true }, quitar("recordatorios", id));
+  },
+  // Repostaje o mantenimiento suelto (sin gasto: no debería pasar, pero por si acaso)
+  borrarRegistroCoche(d, tabla, id) {
+    if (!TABLAS_ENLAZADAS.includes(tabla)) falla("Tabla no válida.");
+    const x = buscar(d[tabla], id, "ese registro");
+    if (x.movimientoId && d.movimientos.some((m) => m.id === x.movimientoId)) return op.borrarMovimiento(d, x.movimientoId);
+    d[tabla] = d[tabla].filter((y) => y.id !== id);
+    return hecho({ ok: true, borrados: [marcar(tabla, x)] }, quitar(tabla, id));
   },
 
   crearPartida(d, b = {}) {

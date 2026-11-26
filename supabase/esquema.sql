@@ -92,12 +92,72 @@ alter table public.ajustes add column if not exists nombre text not null default
 -- Configuración de la nómina: importe, día de corte y pagas extra
 alter table public.ajustes add column if not exists nomina jsonb;
 
+-- ---------- Cuaderno del coche ----------
+create table if not exists public.vehiculos (
+  id uuid primary key,
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  nombre text not null default 'Mi coche',
+  combustible text not null default 'gasolina',     -- gasolina, diesel, hibrido o electrico
+  km_iniciales integer not null default 0,
+  partida_combustible uuid,                         -- partidas donde se apuntan sus gastos
+  partida_mantenimiento uuid,
+  activo boolean not null default true,
+  creado timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.repostajes (
+  id uuid primary key,
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  vehiculo_id uuid not null,
+  fecha date not null,
+  km integer not null,                              -- cuentakilómetros
+  litros numeric(10, 2) not null,
+  importe numeric(12, 2) not null,
+  lleno boolean not null default true,
+  gasolinera text not null default '',
+  movimiento_id uuid,                               -- el gasto enlazado
+  updated_at timestamptz not null default now()
+);
+create index if not exists repostajes_usuario_vehiculo on public.repostajes (user_id, vehiculo_id, fecha);
+
+create table if not exists public.mantenimientos (
+  id uuid primary key,
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  vehiculo_id uuid not null,
+  fecha date not null,
+  km integer,
+  tipo text not null default 'otro',                -- revision, itv, aceite, neumaticos, reparacion u otro
+  importe numeric(12, 2) not null,
+  taller text not null default '',
+  notas text not null default '',
+  movimiento_id uuid,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.recordatorios (
+  id uuid primary key,
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  vehiculo_id uuid not null,
+  tipo text not null default 'otro',                -- itv, revision, seguro, impuesto, aceite u otro
+  nota text not null default '',
+  proxima_fecha date,
+  proximos_km integer,
+  repetir_meses integer,
+  repetir_km integer,
+  updated_at timestamptz not null default now()
+);
+
+-- Partidas «del coche» (seguro, impuesto…) y qué parte es suya
+alter table public.partidas add column if not exists vehiculo_id uuid;
+alter table public.partidas add column if not exists pct_coche smallint;
+
 -- ---------- Seguridad: cada persona solo ve y cambia lo suyo ----------
 do $$
 declare
   t text;
 begin
-  foreach t in array array['partidas', 'objetivos', 'movimientos', 'meses', 'simulaciones', 'ajustes'] loop
+  foreach t in array array['partidas', 'objetivos', 'movimientos', 'meses', 'simulaciones', 'ajustes', 'vehiculos', 'repostajes', 'mantenimientos', 'recordatorios'] loop
     execute format('alter table public.%I enable row level security', t);
     execute format('grant select, insert, update, delete on table public.%I to authenticated', t);
     -- Solo se crea la regla si la tabla no tenía ninguna (la versión anterior ya trae las suyas)

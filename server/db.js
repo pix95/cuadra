@@ -76,10 +76,12 @@ function escribir() {
 
 // Aplica una operación de shared/modelo.js y lo guarda en disco. Todo es
 // síncrono, así que dos peticiones nunca se pisan. Las operaciones validan
-// antes de tocar nada: si fallan, no se escribe.
+// sobre una copia: si fallan a medias, los datos se quedan como estaban.
 export function cambiar(fn) {
   copiaDiaria();
-  const { r } = fn(datos);
+  const copia = structuredClone(datos);
+  const { r } = fn(copia);
+  datos = copia;
   escribir();
   return r;
 }

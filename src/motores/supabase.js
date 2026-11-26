@@ -7,13 +7,17 @@ import { op, migrar, semilla, normalizarPartida } from "../../shared/modelo.js";
 import { importarCSV } from "../../shared/csv.js";
 import inicial from "../../presupuesto-inicial.js";
 
-const CONFLICTO = { partidas: "id", movimientos: "id", objetivos: "id", simulaciones: "id", meses: "user_id,mes", ajustes: "user_id" };
+const CONFLICTO = {
+  partidas: "id", movimientos: "id", objetivos: "id", simulaciones: "id", meses: "user_id,mes", ajustes: "user_id",
+  vehiculos: "id", repostajes: "id", mantenimientos: "id", recordatorios: "id",
+};
 
 // ---------- De la app a Supabase y al revés ----------
 const aFila = {
   partidas: (p) => ({
     id: p.id, nombre: p.nombre, categoria: p.categoria, importe: p.importe, frecuencia: p.frecuencia, orden: Math.round(p.orden),
     activa: p.activa, recibo: p.recibo, icono: p.icono, cobro_ancla: p.cobroAncla ?? null,
+    vehiculo_id: p.vehiculoId ?? null, pct_coche: p.pctCoche ?? null,
   }),
   movimientos: (m) => ({
     id: m.id, tipo: m.tipo, fecha: m.fecha, importe: m.importe, partida_id: m.partidaId, objetivo_id: m.objetivoId,
@@ -29,10 +33,43 @@ const aFila = {
     actualizado: s.actualizado,
   }),
   ajustes: (a) => ({ nombre: a.nombre, sueldo: a.sueldoSugerido, nomina: a.nomina ?? null }),
+  vehiculos: (v) => ({
+    id: v.id, nombre: v.nombre, combustible: v.combustible, km_iniciales: v.kmIniciales, partida_combustible: v.partidaCombustible,
+    partida_mantenimiento: v.partidaMantenimiento, activo: v.activo, creado: v.creado,
+  }),
+  repostajes: (r) => ({
+    id: r.id, vehiculo_id: r.vehiculoId, fecha: r.fecha, km: r.km, litros: r.litros, importe: r.importe, lleno: r.lleno,
+    gasolinera: r.gasolinera, movimiento_id: r.movimientoId,
+  }),
+  mantenimientos: (m) => ({
+    id: m.id, vehiculo_id: m.vehiculoId, fecha: m.fecha, km: m.km, tipo: m.tipo, importe: m.importe, taller: m.taller,
+    notas: m.notas, movimiento_id: m.movimientoId,
+  }),
+  recordatorios: (r) => ({
+    id: r.id, vehiculo_id: r.vehiculoId, tipo: r.tipo, nota: r.nota, proxima_fecha: r.proximaFecha, proximos_km: r.proximosKm,
+    repetir_meses: r.repetirMeses, repetir_km: r.repetirKm,
+  }),
 };
 const num = (v) => (v == null ? null : Number(v));
 const deFila = {
-  partidas: (f) => normalizarPartida({ ...f, importe: num(f.importe), cobroAncla: f.cobro_ancla }),
+  partidas: (f) => normalizarPartida({ ...f, importe: num(f.importe), cobroAncla: f.cobro_ancla, vehiculoId: f.vehiculo_id, pctCoche: num(f.pct_coche) }),
+  vehiculos: (f) => ({
+    id: f.id, nombre: f.nombre || "Mi coche", combustible: f.combustible || "gasolina", kmIniciales: num(f.km_iniciales) || 0,
+    partidaCombustible: f.partida_combustible ?? null, partidaMantenimiento: f.partida_mantenimiento ?? null, activo: f.activo !== false,
+    creado: f.creado || f.updated_at || null,
+  }),
+  repostajes: (f) => ({
+    id: f.id, vehiculoId: f.vehiculo_id, fecha: String(f.fecha).slice(0, 10), km: num(f.km), litros: num(f.litros), importe: num(f.importe),
+    lleno: f.lleno !== false, gasolinera: f.gasolinera || "", movimientoId: f.movimiento_id ?? null,
+  }),
+  mantenimientos: (f) => ({
+    id: f.id, vehiculoId: f.vehiculo_id, fecha: String(f.fecha).slice(0, 10), km: num(f.km), tipo: f.tipo || "otro", importe: num(f.importe),
+    taller: f.taller || "", notas: f.notas || "", movimientoId: f.movimiento_id ?? null,
+  }),
+  recordatorios: (f) => ({
+    id: f.id, vehiculoId: f.vehiculo_id, tipo: f.tipo || "otro", nota: f.nota || "", proximaFecha: f.proxima_fecha ? String(f.proxima_fecha).slice(0, 10) : null,
+    proximosKm: num(f.proximos_km), repetirMeses: num(f.repetir_meses), repetirKm: num(f.repetir_km),
+  }),
   movimientos: (f) => ({
     id: f.id,
     tipo: f.tipo || "gasto",
@@ -76,6 +113,13 @@ function escribirLS(k, v) {
   } catch {
     /* almacenamiento lleno o bloqueado */
   }
+}
+
+// Tabla que aún no existe en Supabase (no se ha ejecutado el esquema nuevo)
+export function faltaTabla(e) {
+  const m = String(e?.message || e || "").toLowerCase();
+  const code = String(e?.code || "");
+  return code === "PGRST205" || code === "42P01" || (m.includes("could not find") && m.includes("table"));
 }
 
 export function mensajeError(e) {
@@ -207,13 +251,14 @@ export function motorSupabase({ url, clave, cliente = null }) {
   }
 
   async function descargar() {
-    const [partidas, objetivos, movimientos, meses, simulaciones, aj] = await Promise.all([
+    const [partidas, objetivos, movimientos, meses, simulaciones, aj, coche] = await Promise.all([
       traerTodo("partidas", "orden"),
       traerTodo("objetivos", "creado"),
       traerTodo("movimientos", "fecha"),
       traerTodo("meses", "mes"),
       traerTodo("simulaciones", "creado"),
       sb.from("ajustes").select("*").maybeSingle(),
+      traerCoche(),
     ]);
     if (aj.error) throw aj.error;
     return migrar({
@@ -223,7 +268,31 @@ export function motorSupabase({ url, clave, cliente = null }) {
       movimientos: movimientos.map(deFila.movimientos),
       meses: Object.fromEntries(meses.map((f) => [f.mes, { sueldo: num(f.sueldo), ingresada: f.ingresada ? String(f.ingresada).slice(0, 10) : null }])),
       simulaciones: simulaciones.map(deFila.simulaciones),
+      ...coche,
     });
+  }
+
+  // Las tablas del coche son nuevas: si aún no se ha ejecutado el esquema, la
+  // app sigue funcionando sin ellas (y avisa al guardar algo del coche).
+  async function traerCoche() {
+    try {
+      const [vehiculos, repostajes, mantenimientos, recordatorios] = await Promise.all([
+        traerTodo("vehiculos", "creado"),
+        traerTodo("repostajes", "fecha"),
+        traerTodo("mantenimientos", "fecha"),
+        traerTodo("recordatorios", "id"),
+      ]);
+      return {
+        vehiculos: vehiculos.map(deFila.vehiculos),
+        repostajes: repostajes.map(deFila.repostajes),
+        mantenimientos: mantenimientos.map(deFila.mantenimientos),
+        recordatorios: recordatorios.map(deFila.recordatorios),
+      };
+    } catch (e) {
+      if (!faltaTabla(e)) throw e;
+      // Conserva lo que hubiera en el dispositivo (aún en la cola)
+      return { vehiculos: estado?.vehiculos || [], repostajes: estado?.repostajes || [], mantenimientos: estado?.mantenimientos || [], recordatorios: estado?.recordatorios || [] };
+    }
   }
 
   function programar(ms = 800, descarga = false) {
@@ -403,6 +472,11 @@ export function motorSupabase({ url, clave, cliente = null }) {
     borrarMovimiento: borrar("Movimiento"),
     guardarGasto: (m, opciones) => ejecutar(op.guardarGasto, m, opciones),
     restaurarMovimientos: (lista, quitar) => ejecutar(op.restaurarMovimientos, lista, quitar),
+    guardarVehiculo: guardar("vehiculos", "Vehiculo"),
+    borrarVehiculo: borrar("Vehiculo"),
+    guardarRecordatorio: guardar("recordatorios", "Recordatorio"),
+    borrarRecordatorio: borrar("Recordatorio"),
+    borrarRegistroCoche: (tabla, id) => ejecutar(op.borrarRegistroCoche, tabla, id),
     guardarPartida: guardar("partidas", "Partida"),
     borrarPartida: borrar("Partida"),
     guardarObjetivo: guardar("objetivos", "Objetivo"),

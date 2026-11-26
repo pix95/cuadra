@@ -234,6 +234,7 @@ export function alertas(db, mes, hoy = hoyISO()) {
     if (e === "pasado") out.push({ nivel: "mal", tipo: "partida", partida: p, texto: `Te has pasado ${eurTxt(g - p.importe)} en ${p.nombre}.` });
     else if (e === "cerca" && !p.recibo) out.push({ nivel: "aviso", tipo: "partida", partida: p, texto: `Llevas el ${Math.round((g / p.importe) * 100)} % de ${p.nombre}.` });
   }
+  if (r.fase !== "pasado") out.push(...avisosCoche(db, hoy));
   if (r.fase !== "pasado") {
     const pend = recibosMes(db, mes).filter((x) => !x.hecho);
     if (pend.length) out.push({ nivel: "info", tipo: "recibos", texto: `${pend.length} ${pend.length === 1 ? "recibo pendiente" : "recibos pendientes"} este mes (${eurTxt(sum(pend, (x) => x.partida.importe))}).` });
@@ -279,7 +280,7 @@ export function moverPeriodo(tipo, ancla, delta) {
   return sumarDias(ancla, 7 * delta);
 }
 
-const diasEntre = (a, b) => Math.round((fechaDe(b) - fechaDe(a)) / 864e5);
+export const diasEntre = (a, b) => Math.round((fechaDe(b) - fechaDe(a)) / 864e5);
 
 // Gastos de un periodo, comparados con el anterior y con el presupuesto
 export function analisisPeriodo(db, tipo, ancla, hoy = hoyISO()) {
@@ -528,4 +529,255 @@ export function resumenCuentas(db) {
   const noMensuales = huchaPeriodicos(db).saldo;
   const objetivos = r2(sum(db.objetivos, (o) => ahorradoObjetivo(db, o.id)));
   return { principales, noMensuales, objetivos, total: r2(principales + noMensuales + objetivos) };
+}
+
+// ---------- Coche ----------
+// Repostajes, consumo de lleno a lleno, costes y recordatorios. Las fechas son
+// "AAAA-MM-DD"; "hoy" se puede pasar para las pruebas.
+
+const DIAS_MES = 30.44;
+export function sumarMeses(f, n) {
+  const mes = moverMes(f.slice(0, 7), n);
+  return `${mes}-${String(Math.min(Number(f.slice(8, 10)), diasEnMes(mes))).padStart(2, "0")}`;
+}
+
+export const vehiculoPrincipal = (db) => (db.vehiculos || []).find((v) => v.activo) || (db.vehiculos || [])[0] || null;
+export const ordenRepostajes = (rs) => [...rs].sort((a, b) => a.fecha.localeCompare(b.fecha) || a.km - b.km);
+export const repostajesDe = (db, vid) => ordenRepostajes((db.repostajes || []).filter((r) => r.vehiculoId === vid));
+export const mantenimientosDe = (db, vid) => (db.mantenimientos || []).filter((m) => m.vehiculoId === vid).sort((a, b) => a.fecha.localeCompare(b.fecha));
+export const precioLitro = (r) => (r.litros > 0 ? Math.round((r.importe / r.litros) * 1000) / 1000 : null);
+// Un vehículo y la partida de un gasto: ¿es su combustible o su mantenimiento?
+export const vehiculoDeCombustible = (db, partidaId) => (partidaId && (db.vehiculos || []).find((v) => v.partidaCombustible === partidaId)) || null;
+export const vehiculoDeMantenimiento = (db, partidaId) => (partidaId && (db.vehiculos || []).find((v) => v.partidaMantenimiento === partidaId)) || null;
+
+// Consumo real con el método de lleno a lleno: entre dos repostajes con el
+// depósito lleno se suman los litros de todos los posteriores al primero
+// (parciales incluidos, y el último lleno) y se dividen entre los km. Los
+// repostajes antes del primer lleno no cuentan.
+export function tramosConsumo(repostajes) {
+  const out = [];
+  let ancla = null;
+  let litros = 0;
+  for (const r of ordenRepostajes(repostajes)) {
+    if (ancla) litros += r.litros;
+    if (!r.lleno) continue;
+    if (ancla && r.km > ancla.km) {
+      const km = r.km - ancla.km;
+      out.push({ desde: ancla.fecha, hasta: r.fecha, kmDesde: ancla.km, kmHasta: r.km, km, litros: r2(litros), consumo: r2((litros / km) * 100) });
+    }
+    ancla = r;
+    litros = 0;
+  }
+  return out;
+}
+
+// Media ponderada (litros totales / km totales) de los tramos que acaban en los últimos meses
+export function consumoMedio(tramos, hoy = hoyISO(), meses = 6) {
+  const desde = sumarMeses(hoy, -meses);
+  const ts = tramos.filter((t) => t.hasta > desde && t.hasta <= hoy);
+  const km = sum(ts, (t) => t.km);
+  return km > 0 ? r2((sum(ts, (t) => t.litros) / km) * 100) : null;
+}
+
+// Aviso si el último tramo gasta más de un 15 % por encima de la media de los anteriores
+export function avisoConsumo(tramos, hoy = hoyISO()) {
+  if (tramos.length < 2) return null;
+  const ultimo = tramos[tramos.length - 1];
+  const media = consumoMedio(tramos.slice(0, -1), hoy) ?? consumoMedio(tramos.slice(0, -1), hoy, 24);
+  if (!media || ultimo.consumo <= media * 1.15) return null;
+  return { ultimo, media, exceso: r2(((ultimo.consumo - media) / media) * 100) };
+}
+
+// Lecturas del cuentakilómetros: al crear el vehículo, repostajes y mantenimientos con km
+export function lecturasKm(db, v) {
+  const out = [];
+  if (v.creado) out.push({ fecha: String(v.creado).slice(0, 10), km: v.kmIniciales || 0 });
+  for (const r of repostajesDe(db, v.id)) out.push({ fecha: r.fecha, km: r.km });
+  for (const m of mantenimientosDe(db, v.id)) if (m.km != null) out.push({ fecha: m.fecha, km: m.km });
+  return out.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.km - b.km);
+}
+
+export function kmActuales(db, v) {
+  const ls = lecturasKm(db, v);
+  return ls.length ? Math.max(...ls.map((l) => l.km)) : v.kmIniciales || 0;
+}
+
+// Km recorridos en los últimos 12 meses (desde la última lectura anterior a
+// la ventana, si la hay) y la media al mes. Hacen falta al menos 3 semanas.
+export function kmRecorridos(db, v, hoy = hoyISO(), meses = 12) {
+  const desde = sumarMeses(hoy, -meses);
+  const ls = lecturasKm(db, v).filter((l) => l.fecha <= hoy);
+  const antes = ls.filter((l) => l.fecha < desde);
+  const dentro = [...(antes.length ? [antes[antes.length - 1]] : []), ...ls.filter((l) => l.fecha >= desde)];
+  if (dentro.length < 2) return { km: 0, dias: 0, desde: dentro[0]?.fecha ?? null, alMes: null, alAño: null };
+  const primera = dentro[0];
+  const ultima = dentro.reduce((a, l) => (l.km >= a.km ? l : a), dentro[0]);
+  const km = Math.max(0, ultima.km - primera.km);
+  const dias = diasEntre(primera.fecha, ultima.fecha);
+  const alMes = dias >= 21 ? Math.round((km / dias) * DIAS_MES) : null;
+  return { km, dias, desde: primera.fecha, alMes, alAño: alMes == null ? null : alMes * 12 };
+}
+
+// Km que marcará hoy el cuentakilómetros (la última lectura más lo que se suele hacer)
+export function kmEstimados(db, v, hoy = hoyISO()) {
+  const ls = lecturasKm(db, v);
+  const ultima = ls.reduce((a, l) => (!a || l.km >= a.km ? l : a), null);
+  if (!ultima) return v.kmIniciales || 0;
+  const { alMes } = kmRecorridos(db, v, hoy);
+  const dias = Math.max(0, diasEntre(ultima.fecha, hoy));
+  return Math.round(ultima.km + (alMes ? (alMes * dias) / DIAS_MES : 0));
+}
+
+// Precio por litro: el último, la media de 12 meses (ponderada) y su evolución
+export function preciosLitro(db, v, hoy = hoyISO()) {
+  const rs = repostajesDe(db, v.id).filter((r) => r.litros > 0 && r.importe > 0);
+  const desde = sumarMeses(hoy, -12);
+  const año = rs.filter((r) => r.fecha > desde && r.fecha <= hoy);
+  const litros = sum(año, (r) => r.litros);
+  return {
+    serie: rs.map((r) => ({ id: r.id, fecha: r.fecha, precio: precioLitro(r) })),
+    ultimo: rs.length ? precioLitro(rs[rs.length - 1]) : null,
+    media: litros > 0 ? Math.round((sum(año, (r) => r.importe) / litros) * 1000) / 1000 : null,
+  };
+}
+
+// Lo que cuesta el coche: combustible y mantenimiento de los últimos 12 meses
+// (de sus partidas en Cuadra), más las partidas marcadas «del coche».
+export function costeCoche(db, v, hoy = hoyISO()) {
+  const desde = sumarMeses(hoy, -12);
+  const gastos = (pid) => (pid ? db.movimientos.filter((m) => m.tipo === "gasto" && m.partidaId === pid && m.fecha > desde && m.fecha <= hoy) : []);
+  const gc = gastos(v.partidaCombustible);
+  const gm = v.partidaMantenimiento === v.partidaCombustible ? [] : gastos(v.partidaMantenimiento);
+  const combustible = r2(sum(gc, (m) => m.importe));
+  const mantenimiento = r2(sum(gm, (m) => m.importe));
+  // Meses que cubren los datos (un vehículo recién creado no tiene 12)
+  const fechas = [...gc, ...gm].map((m) => m.fecha).concat(v.creado ? [String(v.creado).slice(0, 10)] : []);
+  const inicio = fechas.length ? fechas.reduce((a, f) => (f < a ? f : a)) : hoy;
+  const meses = r2(Math.min(12, Math.max(1, diasEntre(inicio < desde ? desde : inicio, hoy) / DIAS_MES)));
+  const partidas = db.partidas
+    .filter((p) => p.activa && p.vehiculoId === v.id && p.id !== v.partidaCombustible && p.id !== v.partidaMantenimiento)
+    .map((p) => ({ partida: p, alMes: r2((previstoMes(p) * (p.pctCoche ?? 100)) / 100) }));
+  const fijos = r2(sum(partidas, (x) => x.alMes));
+  // Coste por km: lo gastado después de la primera lectura de la ventana
+  const km = kmRecorridos(db, v, hoy);
+  const trasLectura = (lista) => r2(sum(lista.filter((m) => km.desde && m.fecha > km.desde), (m) => m.importe));
+  const cKm = trasLectura(gc);
+  const mKm = trasLectura(gm);
+  return {
+    combustible,
+    mantenimiento,
+    meses,
+    partidas,
+    fijos,
+    alMes: r2((combustible + mantenimiento) / meses + fijos),
+    porKmCombustible: km.km > 0 ? Math.round((cKm / km.km) * 1000) / 1000 : null,
+    porKmTotal: km.km > 0 ? Math.round(((cKm + mKm) / km.km) * 1000) / 1000 : null,
+    km,
+  };
+}
+
+// Combustible de un mes frente a lo presupuestado en su partida
+export function combustibleMes(db, v, mes) {
+  const p = db.partidas.find((x) => x.id === v.partidaCombustible);
+  const gastado = r2(sum(db.movimientos.filter((m) => m.tipo === "gasto" && m.partidaId === v.partidaCombustible && m.fecha.startsWith(mes)), (m) => m.importe));
+  return { partida: p || null, gastado, presupuesto: p ? r2(previstoMes(p)) : null };
+}
+
+// ---------- Recordatorios del coche ----------
+export const NOMBRES_RECORDATORIO = { itv: "ITV", revision: "Revisión", seguro: "Seguro", impuesto: "Impuesto de circulación", aceite: "Cambio de aceite", otro: "Recordatorio" };
+export const nombreRecordatorio = (r) => (r.tipo === "otro" && r.nota ? r.nota : NOMBRES_RECORDATORIO[r.tipo] || "Recordatorio");
+
+export function plazoTxt(dias) {
+  if (dias < -1) return `hace ${-dias} días`;
+  if (dias === -1) return "ayer";
+  if (dias === 0) return "hoy";
+  if (dias === 1) return "mañana";
+  if (dias < 14) return `en ${dias} días`;
+  if (dias < 60) return `en ${Math.round(dias / 7)} semanas`;
+  const m = Math.round(dias / DIAS_MES);
+  return m < 24 ? `en ${m} meses` : `en ${Math.round(m / 12)} años`;
+}
+const kmTxt = (n) => `${Math.round(n).toLocaleString("es-ES")} km`;
+
+// Estado: vencido, pronto (menos de 30 días o 1.000 km) o al día. Los km que
+// faltan se pasan a días con la media mensual, para saber qué llega antes.
+export function estadoRecordatorio(rec, kmHoy, kmMes, hoy = hoyISO()) {
+  const dias = rec.proximaFecha ? diasEntre(hoy, rec.proximaFecha) : null;
+  const km = rec.proximosKm != null && kmHoy != null ? Math.round(rec.proximosKm - kmHoy) : null;
+  const diasKm = km != null && kmMes > 0 ? Math.round((km / kmMes) * DIAS_MES) : null;
+  const vencido = (dias != null && dias < 0) || (km != null && km < 0);
+  const pronto = !vencido && ((dias != null && dias < 30) || (km != null && km < 1000));
+  const estado = vencido ? "vencido" : pronto ? "pronto" : "al-dia";
+  const nombre = nombreRecordatorio(rec);
+  let cuando;
+  if (km != null && km < 0) cuando = `pasado de ${kmTxt(-km)}`;
+  else if (dias != null && dias < 0) cuando = `venció ${plazoTxt(dias)}`;
+  else if (km != null && (dias == null || km < 1000 || (diasKm != null && diasKm < dias))) cuando = `en ${kmTxt(km)}`;
+  else cuando = plazoTxt(dias);
+  // Para ordenar: lo que llegue antes
+  const porKm = diasKm ?? (km != null && km < 1000 ? km / 50 : Infinity);
+  const urgencia = Math.min(dias ?? Infinity, porKm);
+  return { recordatorio: rec, estado, dias, km, diasKm, nombre, cuando, texto: `${nombre} ${cuando}`, urgencia };
+}
+
+export function recordatoriosCoche(db, v, hoy = hoyISO()) {
+  const kmHoy = kmEstimados(db, v, hoy);
+  const { alMes } = kmRecorridos(db, v, hoy);
+  const peso = { vencido: 0, pronto: 1, "al-dia": 2 };
+  return (db.recordatorios || [])
+    .filter((r) => r.vehiculoId === v.id)
+    .map((r) => estadoRecordatorio(r, kmHoy, alMes, hoy))
+    .sort((a, b) => peso[a.estado] - peso[b.estado] || a.urgencia - b.urgencia);
+}
+
+// Tras un mantenimiento, la próxima vez según la repetición del recordatorio
+export function siguienteRecordatorio(rec, fecha, km) {
+  return {
+    proximaFecha: rec.repetirMeses ? sumarMeses(fecha, rec.repetirMeses) : rec.proximaFecha,
+    proximosKm: rec.repetirKm && km != null ? km + rec.repetirKm : rec.proximosKm,
+  };
+}
+// El recordatorio que corresponde a un tipo de mantenimiento (ITV, revisión, aceite)
+export function recordatorioDeMantenimiento(db, vehiculoId, tipo) {
+  if (!["itv", "revision", "aceite"].includes(tipo)) return null;
+  return (db.recordatorios || []).find((r) => r.vehiculoId === vehiculoId && r.tipo === tipo) || null;
+}
+
+// Todo lo que enseña la pantalla Coche
+export function resumenCoche(db, v, hoy = hoyISO()) {
+  const repostajes = repostajesDe(db, v.id);
+  const tramos = tramosConsumo(repostajes);
+  return {
+    repostajes,
+    mantenimientos: mantenimientosDe(db, v.id),
+    tramos,
+    consumo: consumoMedio(tramos, hoy),
+    aviso: avisoConsumo(tramos, hoy),
+    coste: costeCoche(db, v, hoy),
+    precios: preciosLitro(db, v, hoy),
+    recordatorios: recordatoriosCoche(db, v, hoy),
+    kmHoy: kmEstimados(db, v, hoy),
+    combustibleMes: combustibleMes(db, v, hoy.slice(0, 7)),
+  };
+}
+
+// Avisos del coche para la campana y la tarjeta de Inicio
+export function avisosCoche(db, hoy = hoyISO()) {
+  const out = [];
+  for (const v of (db.vehiculos || []).filter((v) => v.activo)) {
+    for (const e of recordatoriosCoche(db, v, hoy)) {
+      if (e.estado === "al-dia") continue;
+      out.push({ nivel: e.estado === "vencido" ? "mal" : "aviso", tipo: "coche", vehiculo: v, recordatorio: e, texto: `${e.texto[0].toUpperCase()}${e.texto.slice(1)}.` });
+    }
+    const a = avisoConsumo(tramosConsumo(repostajesDe(db, v.id)), hoy);
+    if (a)
+      out.push({
+        nivel: "aviso",
+        tipo: "coche",
+        vehiculo: v,
+        consumo: a,
+        texto: `${v.nombre} ha gastado un ${Math.round(a.exceso)} % más de lo normal en el último tramo (${String(a.ultimo.consumo).replace(".", ",")} l/100 km). Puede ser la conducción, la presión de las ruedas o una avería.`,
+      });
+  }
+  return out;
 }
