@@ -1,6 +1,6 @@
 // Ventanas que suben desde abajo: sueldo, partidas, objetivos, avisos, recibos, ajustes…
 import { useMemo, useRef, useState } from "react";
-import { Check, X, Search, Download, Upload, FileJson, TriangleAlert, Info, CircleAlert, ChevronRight, Archive, ArchiveRestore, Trash2, Plus, CalendarClock, RefreshCw, LogOut, Smartphone } from "lucide-react";
+import { Check, X, Scale, Search, Download, Upload, FileJson, TriangleAlert, Info, CircleAlert, ChevronRight, Archive, ArchiveRestore, Trash2, Plus, CalendarClock, RefreshCw, LogOut, Smartphone } from "lucide-react";
 import { exportarCSV } from "../../shared/csv.js";
 import { useDatos, useUI } from "../store.jsx";
 import { Hoja, CampoImporte, Interruptor, Barra, BarraRayas } from "../components/comunes.jsx";
@@ -8,8 +8,9 @@ import { Ficha, Icono, ICONOS, ICONOS_OBJETIVO, colorCategoria } from "../lib/ic
 import {
   presupuestoMensual, recibosMes, alertas, ordenar, ordenCategorias, esMensual, gastosPorPartida, movsDeMes, ahorradoObjetivo,
   FRECUENCIAS, CADA, resumenMes, estadoDe, porcentaje, acumuladoAño, anual, objetivosConFijo, OBJETIVO_FIJO, AHORRO_PRINCIPAL,
+  CUENTA_PRINCIPAL, cuentas, cuentaDeAjuste, recibosNoMensualesMes, huchaPeriodicos, proximosCobros,
 } from "../lib/calculos.js";
-import { eur, parseImporte, aInput, nombreMes, mesActual, moverMes, hoyISO, diasEnMes, MESES_CORTOS, mayus, fechaCorta, r2 } from "../lib/formato.js";
+import { eur, parseImporte, aInput, nombreMes, mesActual, moverMes, hoyISO, diasEnMes, MESES_CORTOS, mayus, fechaCorta, mesCorto, r2 } from "../lib/formato.js";
 
 // ---------- Sueldo del mes ----------
 export function HojaSueldo({ mes, inicioDeMes = false, cerrar }) {
@@ -116,6 +117,7 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
     frecuencia: partida?.frecuencia || "Mensual",
     recibo: partida?.recibo || false,
     icono: partida?.icono || "paquete",
+    cobroAncla: partida?.cobroAncla || "",
   }));
   const [error, setError] = useState("");
   const [confirmarBorrar, setConfirmarBorrar] = useState(false);
@@ -128,7 +130,14 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
     if (!f.nombre.trim()) return setError("Ponle un nombre a la partida.");
     if (!Number.isFinite(importe) || importe < 0) return setError("El importe debe ser un número, por ejemplo 45,90.");
     try {
-      const r = await acc.guardarPartida({ ...(partida || {}), ...f, nombre: f.nombre.trim(), categoria: f.categoria.trim() || "Otros", importe });
+      const r = await acc.guardarPartida({
+        ...(partida || {}),
+        ...f,
+        nombre: f.nombre.trim(),
+        categoria: f.categoria.trim() || "Otros",
+        importe,
+        cobroAncla: f.frecuencia !== "Mensual" ? f.cobroAncla || null : null,
+      });
       cerrar();
       ui.avisar(partida ? "Partida guardada" : `Partida «${r.nombre}» añadida`);
     } catch (e) {
@@ -220,6 +229,19 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
             </button>
           ))}
         </div>
+        {f.frecuencia !== "Mensual" && (
+          <label className="campo">
+            <span>Próximo cobro</span>
+            <input type="month" value={f.cobroAncla} onChange={(e) => set("cobroAncla")(e.target.value)} />
+            <small className="ayuda">
+              {f.cobroAncla
+                ? `Cobros: ${proximosCobros({ ...f, importe: 1 }, f.cobroAncla, 4)
+                    .map((m) => mesCorto(m, { año: true }).toLowerCase())
+                    .join(", ")}…`
+                : "Sin fecha, se reparte a partes iguales cada mes. Con fecha, la hucha sabe cuándo tiene que tenerlo."}
+            </small>
+          </label>
+        )}
         {f.frecuencia !== "Mensual" && Number.isFinite(importe) && importe > 0 && (
           <small className="ayuda">
             Son {eur(importe * { Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1 }[f.frecuencia])} al año: aparta {eur((importe * { Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1 }[f.frecuencia]) / 12)} cada mes.
@@ -297,6 +319,18 @@ export function HojaObjetivo({ objetivo = null, onGuardado, cerrar }) {
           {objetivo && (
             <button type="button" className={`btn ${confirmar ? "btn-peligro" : "btn-texto"}`} onClick={eliminar}>
               <Trash2 size={16} /> {confirmar ? "¿Seguro?" : "Eliminar"}
+            </button>
+          )}
+          {objetivo && (
+            <button
+              type="button"
+              className="btn btn-texto"
+              onClick={() => {
+                cerrar();
+                ui.abrir("cuadrar", { cuenta: objetivo.id });
+              }}
+            >
+              <Scale size={16} /> Cuadrar
             </button>
           )}
           {objetivo && (
@@ -413,20 +447,28 @@ export function HojaRecibos({ mes, cerrar }) {
   const { db, acc } = useDatos();
   const ui = useUI();
   const recibos = recibosMes(db, mes);
-  const periodicos = ordenar(db.partidas.filter((p) => p.activa && p.recibo && !esMensual(p) && p.importe > 0));
-  const gMes = gastosPorPartida(movsDeMes(db, mes), db.partidas);
-  const gAño = acumuladoAño(db, mes);
+  const noMensuales = recibosNoMensualesMes(db, mes);
+  const sinFecha = ordenar(db.partidas.filter((p) => p.activa && p.recibo && !esMensual(p) && p.importe > 0 && !p.cobroAncla));
   const pendientes = recibos.filter((x) => !x.hecho);
   const fecha = mes === mesActual() ? hoyISO() : mes < mesActual() ? `${mes}-${String(diasEnMes(mes)).padStart(2, "0")}` : `${mes}-01`;
+  const hucha = huchaPeriodicos(db, mes);
   const [ocupado, setOcupado] = useState(false);
 
+  // Marca recibos como cargados. Los no mensuales se pagan desde la hucha.
   async function cargar(ps) {
     if (ocupado) return;
     setOcupado(true);
     try {
       const creados = [];
-      for (const p of ps) creados.push(await acc.guardarMovimiento({ tipo: "gasto", fecha, importe: p.importe, partidaId: p.id, concepto: "" }));
-      ui.avisar(ps.length === 1 ? `${ps[0].nombre}: ${eur(ps[0].importe)} cargado` : `${ps.length} recibos cargados`, {
+      for (const p of ps) {
+        const gasto = { tipo: "gasto", fecha, importe: p.importe, partidaId: p.id, concepto: "" };
+        creados.push(esMensual(p) ? await acc.guardarMovimiento(gasto) : await acc.guardarGasto(gasto, { desdeHucha: true }));
+      }
+      const unico = ps.length === 1 ? creados[0] : null;
+      const texto = unico
+        ? `${ps[0].nombre}: ${eur(ps[0].importe)} cargado${unico.deHucha ? ` (${eur(unico.deHucha, { corto: true })} de la hucha)` : ""}`
+        : `${ps.length} recibos cargados`;
+      ui.avisar(texto, {
         texto: "Deshacer",
         fn: async () => {
           for (const m of creados) await acc.borrarMovimiento(m.id);
@@ -438,36 +480,55 @@ export function HojaRecibos({ mes, cerrar }) {
       setOcupado(false);
     }
   }
-  // Quitar la marca: se borran los cargos de ese recibo en el mes y el dinero vuelve a lo disponible
+  // Quitar la marca: se borran los cargos de ese recibo en el mes (y su retirada
+  // de la hucha, si la tenía). El dinero vuelve a donde estaba.
   async function desmarcar(p) {
     if (ocupado) return;
     const cargos = movsDeMes(db, mes).filter((m) => m.tipo === "gasto" && m.partidaId === p.id);
     if (!cargos.length) return;
     setOcupado(true);
     try {
-      for (const m of cargos) await acc.borrarMovimiento(m.id);
+      const borrados = [];
+      for (const m of cargos) {
+        const r = await acc.borrarMovimiento(m.id);
+        borrados.push(...(r?.borrados || [m]));
+      }
       const total = cargos.reduce((s, m) => s + m.importe, 0);
-      ui.avisar(`${p.nombre} desmarcado: vuelven ${eur(total)}`, {
-        texto: "Deshacer",
-        fn: async () => {
-          for (const m of cargos) await acc.guardarMovimiento(m);
-        },
-      });
+      ui.avisar(`${p.nombre} desmarcado: vuelven ${eur(total)}`, { texto: "Deshacer", fn: () => acc.restaurarMovimientos(borrados) });
     } catch (e) {
       ui.avisar(e.message, null, "mal");
     } finally {
       setOcupado(false);
     }
   }
-  const ultimo = (p) => {
-    const ms = db.movimientos.filter((m) => m.partidaId === p.id).sort((a, b) => b.fecha.localeCompare(a.fecha));
-    return ms[0];
-  };
+
+  const fila = ({ partida: p, pagado, hecho }, nota) => (
+    <div key={p.id} className={`recibo ${hecho ? "hecho" : ""}`}>
+      <Ficha icono={p.icono} color={colorCategoria(p.categoria)} size={42} />
+      <span className="recibo-txt">
+        <b>{p.nombre}</b>
+        <small>
+          {hecho ? (Math.abs(pagado - p.importe) < 0.01 ? `Cargado ${eur(pagado)}` : `Cargado ${eur(pagado)} (previsto ${eur(p.importe)})`) : `Previsto ${eur(p.importe)}`}
+          {nota ? ` · ${nota}` : ""}
+        </small>
+      </span>
+      {hecho ? (
+        <button type="button" className="recibo-ok" disabled={ocupado} onClick={() => desmarcar(p)} aria-label={`Desmarcar ${p.nombre}`} title="Desmarcar">
+          <Check size={18} className="si" />
+          <X size={18} className="no" />
+        </button>
+      ) : (
+        <button type="button" className="chip" disabled={ocupado} onClick={() => cargar([p])}>
+          Cargado
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <Hoja
       titulo={`Recibos de ${nombreMes(mes)}`}
-      subtitulo="Marca cada recibo cuando te lo carguen y se apunta con su importe. Toca el ✓ para desmarcarlo: el dinero vuelve a lo disponible."
+      subtitulo="Marca cada recibo cuando te lo carguen y se apunta con su importe. Toca el ✓ para desmarcarlo: el dinero vuelve a donde estaba."
       onCerrar={cerrar}
       pie={
         pendientes.length > 1 ? (
@@ -477,60 +538,25 @@ export function HojaRecibos({ mes, cerrar }) {
         ) : null
       }
     >
-      <div className="lista">
-        {recibos.map(({ partida: p, pagado, hecho }) => (
-          <div key={p.id} className={`recibo ${hecho ? "hecho" : ""}`}>
-            <Ficha icono={p.icono} color={colorCategoria(p.categoria)} size={42} />
-            <span className="recibo-txt">
-              <b>{p.nombre}</b>
-              <small>{hecho ? (Math.abs(pagado - p.importe) < 0.01 ? `Cargado ${eur(pagado)}` : `Cargado ${eur(pagado)} (previsto ${eur(p.importe)})`) : `Previsto ${eur(p.importe)}`}</small>
-            </span>
-            {hecho ? (
-              <button type="button" className="recibo-ok" disabled={ocupado} onClick={() => desmarcar(p)} aria-label={`Desmarcar ${p.nombre}`} title="Desmarcar">
-                <Check size={18} className="si" />
-                <X size={18} className="no" />
-              </button>
-            ) : (
-              <button type="button" className="chip" disabled={ocupado} onClick={() => cargar([p])}>
-                Cargado
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-      {periodicos.length > 0 && (
+      <div className="lista">{recibos.map((x) => fila(x))}</div>
+      {(noMensuales.length > 0 || sinFecha.length > 0) && (
         <>
           <h3 className="hoja-sub-titulo">
-            <CalendarClock size={16} /> Recibos periódicos
+            <CalendarClock size={16} /> No mensuales de {nombreMes(mes)}
           </h3>
-          <div className="lista">
-            {periodicos.map((p) => {
-              const esteMes = r2(gMes.get(p.id) || 0);
-              const u = ultimo(p);
-              return (
-                <div key={p.id} className={`recibo ${esteMes > 0 ? "hecho" : ""}`}>
-                  <Ficha icono={p.icono} color={colorCategoria(p.categoria)} size={42} />
-                  <span className="recibo-txt">
-                    <b>{p.nombre}</b>
-                    <small>
-                      {eur(p.importe, { corto: true })} {CADA[p.frecuencia]} · {mes.slice(0, 4)}: {eur(gAño.get(p.id) || 0, { corto: true })} de {eur(anual(p), { corto: true })}
-                      {u && esteMes <= 0 ? ` · último ${fechaCorta(u.fecha)}` : ""}
-                    </small>
-                  </span>
-                  {esteMes > 0 ? (
-                    <button type="button" className="recibo-ok" disabled={ocupado} onClick={() => desmarcar(p)} aria-label={`Desmarcar ${p.nombre}`} title="Desmarcar">
-                      <Check size={18} className="si" />
-                      <X size={18} className="no" />
-                    </button>
-                  ) : (
-                    <button type="button" className="chip" disabled={ocupado} onClick={() => cargar([p])}>
-                      Este mes
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          {noMensuales.length > 0 ? (
+            <>
+              <p className="ayuda tenue">Se pagan desde la hucha «Recibos no mensuales» (ahora tiene {eur(hucha.saldo, { corto: true })}).</p>
+              <div className="lista">{noMensuales.map((x) => fila(x, "de la hucha"))}</div>
+            </>
+          ) : (
+            <p className="ayuda tenue">Ninguno vence este mes.</p>
+          )}
+          {sinFecha.length > 0 && (
+            <p className="ayuda tenue">
+              {sinFecha.length === 1 ? `${sinFecha[0].nombre} no tiene` : `${sinFecha.length} recibos no tienen`} fecha de cobro: ponla en Presupuesto («Próximo cobro») para que salga aquí el mes que toque.
+            </p>
+          )}
         </>
       )}
     </Hoja>
@@ -879,69 +905,106 @@ export function HojaCierre({ mes, importe, fecha, cerrar }) {
   );
 }
 
-// ---------- Añadir dinero a los ahorros (no sale de ningún mes) ----------
-export function HojaAhorroInicial({ cerrar }) {
+// ---------- Cuadrar una cuenta con el banco ----------
+// Escribes el saldo que ves en el banco y se crea un ajuste por la diferencia.
+// La primera vez sirve como saldo inicial.
+export function saldoDeCuenta(db, cuenta) {
+  return cuenta === CUENTA_PRINCIPAL.id ? resumenMes(db, mesActual()).saldoCuenta : ahorradoObjetivo(db, cuenta);
+}
+
+export function HojaCuadrar({ cuenta, cerrar }) {
   const { db, acc } = useDatos();
   const ui = useUI();
-  const añadidos = [...db.movimientos.filter((m) => m.tipo === "inicial")].sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.creado).localeCompare(String(a.creado)));
+  const info = cuentas(db).find((c) => c.id === cuenta) || CUENTA_PRINCIPAL;
+  const enCuadra = saldoDeCuenta(db, cuenta);
+  const primeraVez = !db.movimientos.some((m) => m.tipo === "ajuste" && m.objetivoId === cuenta);
   const [txt, setTxt] = useState("");
   const [error, setError] = useState("");
+  const banco = txt.trim() === "" ? null : parseImporte(txt);
+  const diferencia = banco != null && Number.isFinite(banco) ? r2(banco - enCuadra) : null;
 
-  async function añadir() {
-    const v = parseImporte(txt);
-    if (!Number.isFinite(v) || v <= 0) return setError("Escribe una cantidad, por ejemplo 1500.");
-    try {
-      const m = await acc.guardarMovimiento({ tipo: "inicial", fecha: hoyISO(), importe: v, concepto: "" });
+  async function cuadrar() {
+    if (diferencia == null) return setError("Escribe el saldo que ves en el banco, por ejemplo 1.250,40.");
+    if (Math.abs(diferencia) < 0.01) {
       cerrar();
-      ui.avisar(`${eur(v, { corto: true })} añadidos a tus ahorros`, { texto: "Deshacer", fn: () => acc.borrarMovimiento(m.id) });
+      return ui.avisar(`${info.nombre} ya cuadra con el banco`);
+    }
+    try {
+      const m = await acc.guardarMovimiento({ tipo: "ajuste", objetivoId: cuenta, fecha: hoyISO(), importe: diferencia, concepto: "Cuadrar con el banco" });
+      cerrar();
+      ui.avisar(`${info.nombre}: ajuste de ${eur(diferencia, { signo: true })}`, { texto: "Deshacer", fn: () => acc.borrarMovimiento(m.id) });
     } catch (e) {
       setError(e.message);
     }
   }
-  async function quitar(m) {
-    await acc.borrarMovimiento(m.id);
-    ui.avisar(`${eur(m.importe, { corto: true })} quitados`, { texto: "Deshacer", fn: () => acc.guardarMovimiento(m) });
-  }
 
   return (
     <Hoja
-      titulo="Añadir a tus ahorros"
-      subtitulo="Se suma al total ahorrado sin salir de lo que te queda del mes ni de ningún objetivo."
+      titulo="Cuadrar con el banco"
+      subtitulo={`${info.nombre}: escribe el saldo que ves hoy en el banco y se apunta un ajuste por la diferencia (no cuenta como gasto ni ingreso).${primeraVez ? " La primera vez sirve como saldo inicial." : ""}`}
       onCerrar={cerrar}
       pie={
-        <button type="button" className="btn btn-primario" onClick={añadir}>
-          <Plus size={16} /> Añadir
+        <button type="button" className="btn btn-primario" onClick={cuadrar}>
+          <Scale size={16} /> Cuadrar
         </button>
       }
     >
+      <dl className="cuadre">
+        <dt>En Cuadra</dt>
+        <dd>{eur(enCuadra)}</dd>
+      </dl>
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          añadir();
+          cuadrar();
         }}
       >
-        <CampoImporte grande autoFocus etiqueta="Cantidad" valor={txt} onCambio={setTxt} placeholder="0" />
+        <CampoImporte grande autoFocus etiqueta="En el banco" valor={txt} onCambio={setTxt} placeholder="0" />
       </form>
-      {error && <p className="error">{error}</p>}
-      {añadidos.length > 0 && (
-        <>
-          <h3 className="hoja-sub-titulo">Añadido antes</h3>
-          <div className="lista">
-            {añadidos.map((m) => (
-              <div key={m.id} className="recibo">
-                <Ficha icono="hucha" color="#c9f36b" size={36} />
-                <span className="recibo-txt">
-                  <b>{eur(m.importe)}</b>
-                  <small>{fechaCorta(m.fecha)}</small>
-                </span>
-                <button type="button" className="boton-redondo mini" onClick={() => quitar(m)} aria-label={`Quitar ${eur(m.importe)}`}>
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </>
+      {diferencia != null && (
+        <p className={`aviso-linea ${Math.abs(diferencia) < 0.01 ? "ok" : ""}`}>
+          {Math.abs(diferencia) < 0.01 ? "Ya cuadra: no hace falta ningún ajuste." : `Se apuntará un ajuste de ${eur(diferencia, { signo: true })} con fecha de hoy.`}
+        </p>
       )}
+      {error && <p className="error">{error}</p>}
+    </Hoja>
+  );
+}
+
+// ---------- Ver o borrar un ajuste (desde el historial) ----------
+export function HojaAjuste({ movimiento: m, cerrar }) {
+  const { db, acc } = useDatos();
+  const ui = useUI();
+  const cuenta = cuentas(db).find((c) => c.id === cuentaDeAjuste(m));
+  async function borrar() {
+    try {
+      const r = await acc.borrarMovimiento(m.id);
+      cerrar();
+      ui.avisar("Ajuste borrado", { texto: "Deshacer", fn: () => acc.restaurarMovimientos(r?.borrados || [m]) });
+    } catch (e) {
+      ui.avisar(e.message, null, "mal");
+    }
+  }
+  return (
+    <Hoja
+      titulo="Ajuste"
+      subtitulo="Cambia el saldo de una cuenta sin ser gasto, ingreso ni ahorro del mes."
+      onCerrar={cerrar}
+      pie={
+        <button type="button" className="btn btn-peligro" onClick={borrar}>
+          <Trash2 size={16} /> Borrar ajuste
+        </button>
+      }
+    >
+      <dl className="cuadre">
+        <dt>Cuenta</dt>
+        <dd>{cuenta?.nombre || "Cuenta eliminada"}</dd>
+        <dt>Fecha</dt>
+        <dd>{fechaCorta(m.fecha)}</dd>
+        <dt className="total">Ajuste</dt>
+        <dd className={`total ${m.importe < 0 ? "negativo" : "positivo"}`}>{eur(m.importe, { signo: true })}</dd>
+      </dl>
+      {m.concepto && <p className="ayuda" style={{ marginTop: 12 }}>{m.concepto}</p>}
     </Hoja>
   );
 }

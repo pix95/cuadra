@@ -1,16 +1,22 @@
 import { Ficha } from "../lib/iconos.jsx";
 import { colorCategoria } from "../lib/iconos.jsx";
 import { eur, fechaRelativa } from "../lib/formato.js";
-import { objetivosConFijo } from "../lib/calculos.js";
+import { objetivosConFijo, cuentas, cuentaDeAjuste, esAjuste } from "../lib/calculos.js";
 
 const ESTADO = {
   gasto: (m) => (m.importe < 0 ? "Devolución" : "Gasto"),
   ingreso: () => "Ingreso",
   ahorro: (m) => (m.importe < 0 ? "Retirada" : "Ahorro"),
-  inicial: () => "Ahorro previo",
+  ajuste: () => "Ajuste",
+  inicial: () => "Ajuste",
 };
 
 export function describirMovimiento(m, db) {
+  // Ajuste de una cuenta («Cuadrar con el banco», o un «inicial» antiguo)
+  if (esAjuste(m)) {
+    const cuenta = cuentas(db).find((c) => c.id === cuentaDeAjuste(m));
+    return { p: null, o: cuenta, titulo: m.concepto || "Ajuste", sub: cuenta?.nombre || "Cuenta eliminada", icono: "ajuste", color: "#8fa2ff", valor: m.importe };
+  }
   const p = m.tipo === "gasto" ? db.partidas.find((x) => x.id === m.partidaId) : null;
   const o = m.tipo === "ahorro" ? objetivosConFijo(db).find((x) => x.id === m.objetivoId) : null;
   const nombreBase = p ? p.nombre : o ? o.nombre : m.tipo === "ingreso" ? "Ingreso extra" : m.tipo === "ahorro" ? "Ahorro" : "Sin partida";

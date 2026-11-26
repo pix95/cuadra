@@ -3,7 +3,7 @@ import { Search, X, Plus } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
 import { Navegador, Vacio, Cifra } from "../components/comunes.jsx";
 import { FilaMovimiento, ordenarMovs, describirMovimiento } from "../components/FilaMovimiento.jsx";
-import { ordenCategorias, ordenar } from "../lib/calculos.js";
+import { ordenCategorias, ordenar, esAjuste } from "../lib/calculos.js";
 import { eur, nombreMes, moverMes, mesActual, fechaRelativa, sum, r2 } from "../lib/formato.js";
 
 const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -21,8 +21,7 @@ export default function Movimientos() {
     const t = norm(q.trim());
     // Al buscar se mira en todos los meses
     // Lo que ya tenías ahorrado antes de usar la app se ve en Ahorros, no aquí
-    const propios = db.movimientos.filter((m) => m.tipo !== "inicial");
-    let ms = buscando ? propios : propios.filter((m) => m.fecha.startsWith(todoElAño ? ui.mes.slice(0, 4) : ui.mes));
+    let ms = buscando ? db.movimientos : db.movimientos.filter((m) => m.fecha.startsWith(todoElAño ? ui.mes.slice(0, 4) : ui.mes));
     if (tipo !== "todos") ms = ms.filter((m) => m.tipo === tipo);
     if (partida) ms = ms.filter((m) => m.partidaId === partida);
     if (t) {
@@ -138,7 +137,8 @@ export default function Movimientos() {
         <Vacio titulo={buscando ? "No hay nada con esa búsqueda" : "Nada apuntado"}>{buscando ? "Prueba con otra palabra o un importe." : "Usa el botón + para apuntar un gasto."}</Vacio>
       ) : (
         [...dias.entries()].map(([fecha, ms]) => {
-          const neto = r2(sum(ms, (m) => (m.tipo === "ingreso" ? m.importe : -m.importe)));
+          // Los ajustes no cuentan en el total del día (no son gasto ni ingreso)
+          const neto = r2(sum(ms.filter((m) => !esAjuste(m)), (m) => (m.tipo === "ingreso" ? m.importe : -m.importe)));
           return (
             <section key={fecha} className="dia">
               <h3>
@@ -147,7 +147,7 @@ export default function Movimientos() {
               </h3>
               <div className="lista">
                 {ms.map((m) => (
-                  <FilaMovimiento key={m.id} m={m} db={db} conFecha={false} onClick={() => ui.abrir("apuntar", { movimiento: m })} />
+                  <FilaMovimiento key={m.id} m={m} db={db} conFecha={false} onClick={() => ui.abrir(esAjuste(m) ? "ajuste" : "apuntar", { movimiento: m })} />
                 ))}
               </div>
             </section>

@@ -1,7 +1,7 @@
-import { ArrowUpRight, ArrowDownLeft, Banknote, Bell, Search, ChevronDown, TrendingUp, TrendingDown, ChevronRight, Pencil } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Banknote, Bell, Search, ChevronDown, TrendingUp, TrendingDown, ChevronRight, Pencil, Scale } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { resumenMes, recibosMes, alertas } from "../lib/calculos.js";
-import { eur, nombreMes, mesCorto, saludo, pct } from "../lib/formato.js";
+import { resumenMes, recibosMes, recibosNoMensualesMes, alertas, CUENTA_PRINCIPAL } from "../lib/calculos.js";
+import { eur, nombreMes, mesCorto, saludo, pct, moverMes } from "../lib/formato.js";
 import { Cifra, Sparkline, Vacio } from "../components/comunes.jsx";
 import { Ficha } from "../lib/iconos.jsx";
 import { ICONO } from "../config.js";
@@ -14,6 +14,7 @@ export default function Inicio() {
   const r = resumenMes(db, ui.mes);
   const avisoSync = { pendiente: `${sync.pendientes} sin enviar`, offline: "sin conexión", error: "error al sincronizar" }[sync.estado];
   const recibos = recibosMes(db, ui.mes);
+  const recibosNM = recibosNoMensualesMes(db, ui.mes);
   const avisos = alertas(db, ui.mes);
   const nombre = db.ajustes.nombre?.trim();
   const mesTxt = nombreMes(ui.mes);
@@ -56,7 +57,7 @@ export default function Inicio() {
 
           <PropuestaCierre />
 
-          {recibos.length > 0 && <TarjetaRecibos recibos={recibos} mesTxt={mesTxt} />}
+          {recibos.length + recibosNM.length > 0 && <TarjetaRecibos recibos={recibos} noMensuales={recibosNM} mesTxt={mesTxt} />}
         </div>
 
         <section className="seccion col-b">
@@ -94,8 +95,16 @@ function Accion({ icono, texto, onClick, principal }) {
 
 function TarjetaSaldo({ r, mesTxt }) {
   const ui = useUI();
-  const etiqueta =
-    r.fase === "pasado" ? (r.disponible >= 0 ? `Te sobró en ${mesTxt}` : `Te faltó en ${mesTxt}`) : r.fase === "futuro" ? `Disponible en ${mesTxt}` : `Te queda en ${mesTxt}`;
+  // La cifra grande es el saldo de la cuenta principal (con lo que arrastra de
+  // meses anteriores); el desglose dice cuánto es de este mes.
+  const etiqueta = r.fase === "pasado" ? `En tu cuenta al cerrar ${mesTxt}` : r.fase === "futuro" ? `En tu cuenta en ${mesTxt}` : "En tu cuenta";
+  const desglose = [
+    `${r.fase === "pasado" ? "Ese mes" : "Este mes"} ${eur(r.disponible, { signo: true, corto: true })}`,
+    r.arrastre ? `arrastras de ${nombreMes(moverMes(r.mes, -1))} ${eur(r.arrastre, { corto: true })}` : null,
+    r.ajustesMes ? `ajustes ${eur(r.ajustesMes, { signo: true, corto: true })}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const positivo = r.fase === "pasado" ? r.disponible >= 0 : r.prevision >= 0;
   const real = r.entradas > 0 ? (r.disponible / r.entradas) * 100 : 0;
 
@@ -107,7 +116,15 @@ function TarjetaSaldo({ r, mesTxt }) {
           {mesCorto(ui.mes, { año: true })} <ChevronDown size={15} />
         </button>
       </div>
-      <Cifra valor={r.disponible} className="saldo-cifra" />
+      <Cifra valor={r.saldoCuenta} className="saldo-cifra" />
+      <p className="saldo-desglose">
+        {desglose}
+        {r.fase !== "futuro" && (
+          <button type="button" className="saldo-cuadrar" onClick={() => ui.abrir("cuadrar", { cuenta: CUENTA_PRINCIPAL.id })}>
+            <Scale size={12} /> Cuadrar con el banco
+          </button>
+        )}
+      </p>
 
       {r.sueldo == null && r.fase !== "pasado" ? (
         <button type="button" className="saldo-sin-sueldo" onClick={() => ui.abrir("sueldo", { mes: ui.mes, inicioDeMes: r.fase === "actual" })}>
@@ -136,7 +153,8 @@ function TarjetaSaldo({ r, mesTxt }) {
   );
 }
 
-function TarjetaRecibos({ recibos, mesTxt }) {
+function TarjetaRecibos({ recibos: mensuales, noMensuales = [], mesTxt }) {
+  const recibos = [...mensuales, ...noMensuales];
   const ui = useUI();
   const hechos = recibos.filter((x) => x.hecho).length;
   const faltan = recibos.filter((x) => !x.hecho).reduce((s, x) => s + x.partida.importe, 0);

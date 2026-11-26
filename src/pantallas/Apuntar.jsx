@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, CalendarDays, Trash2, ChevronsUpDown, Plus, Undo2, PencilLine, LayoutGrid, Zap } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { Teclado, aplicarTecla, valorTeclado, tecladoDe, CifraTecleada, Deslizar, Segmentado, useDesplazarConRaton } from "../components/comunes.jsx";
+import { Teclado, aplicarTecla, valorTeclado, tecladoDe, CifraTecleada, Deslizar, Segmentado, Interruptor, useDesplazarConRaton } from "../components/comunes.jsx";
 import { Ficha, colorCategoria } from "../lib/iconos.jsx";
-import { partidasFrecuentes, esMensual, anual, gastosPorPartida, ahorradoObjetivo, objetivosConFijo, AHORRO_PRINCIPAL } from "../lib/calculos.js";
+import { partidasFrecuentes, esMensual, anual, gastosPorPartida, ahorradoObjetivo, objetivosConFijo, AHORRO_PRINCIPAL, OBJETIVO_FIJO } from "../lib/calculos.js";
 import { eur, hoyISO, mesActual, diasEnMes, fechaRelativa, fechaCorta, nombreMes, r2 } from "../lib/formato.js";
 
 const TITULOS = { gasto: ["Nuevo gasto", "Editar gasto"], ingreso: ["Nuevo ingreso", "Editar ingreso"], ahorro: ["Apartar ahorro", "Editar ahorro"] };
@@ -42,6 +42,8 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
   const [borrar, setBorrar] = useState(false);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
+  // Recibos no mensuales: se pagan desde la hucha «Recibos no mensuales» (activado por defecto)
+  const [desdeHucha, setDesdeHucha] = useState(movimiento ? Boolean(movimiento.enlace) || movimiento.tipo !== "gasto" : true);
   const inputFecha = useRef(null);
   const raiz = useRef(null);
   const filaRapida = useDesplazarConRaton();
@@ -75,6 +77,14 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
     return { pres: anual(partida), gastado: r2(g), queda: r2(anual(partida) - g), ambito: año };
   }, [partida, fecha, db.movimientos, db.partidas, movimiento?.id]);
 
+  // De dónde sale el dinero de un recibo no mensual pagado desde la hucha
+  const pagoHucha = useMemo(() => {
+    if (tipo !== "gasto" || !partida || esMensual(partida) || negativo || !importe) return null;
+    const saldo = ahorradoObjetivo(db, OBJETIVO_FIJO.id) - (movimiento?.enlace ? db.movimientos.find((m) => m.id === movimiento.enlace)?.importe || 0 : 0);
+    const deHucha = desdeHucha ? r2(Math.min(importe, Math.max(0, saldo))) : 0;
+    return { saldo: r2(saldo), deHucha, deCuenta: r2(importe - deHucha) };
+  }, [tipo, partida, negativo, importe, desdeHucha, db, movimiento]);
+
   async function guardar() {
     if (guardando) return;
     setError("");
@@ -92,14 +102,18 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
     };
     setGuardando(true);
     try {
-      const r = await acc.guardarMovimiento(mov);
+      // Antes de guardar: cómo estaban el movimiento y su pareja, para «Deshacer»
+      const antes = editando ? db.movimientos.filter((m) => m.id === movimiento.id || (movimiento.enlace && m.id === movimiento.enlace)).map((m) => ({ ...m })) : [];
+      const r = tipo === "gasto" ? await acc.guardarGasto(mov, { desdeHucha: Boolean(pagoHucha) && desdeHucha }) : await acc.guardarMovimiento(mov);
       cerrar();
       const otroMes = fecha.slice(0, 7) !== ui.mes ? ` (${nombreMes(fecha.slice(0, 7))})` : "";
+      const hucha = r.deHucha ? ` · ${eur(r.deHucha, { corto: true })} de la hucha` : "";
       if (editando) {
-        ui.avisar(`Movimiento actualizado${otroMes}`, { texto: "Deshacer", fn: () => acc.guardarMovimiento(movimiento) });
+        const nuevos = r.enlace && !antes.some((m) => m.id === r.enlace) ? [r.enlace] : [];
+        ui.avisar(`Movimiento actualizado${otroMes}${hucha}`, { texto: "Deshacer", fn: () => acc.restaurarMovimientos(antes, nuevos) });
       } else {
         const donde = tipo === "gasto" ? ` en ${nombreCorto(partida.nombre)}` : tipo === "ahorro" ? ` para ${objetivo?.nombre}` : " de ingreso";
-        ui.avisar(`${eur(r.importe)}${donde}${otroMes}`, { texto: "Deshacer", fn: () => acc.borrarMovimiento(r.id) });
+        ui.avisar(`${eur(r.importe)}${donde}${otroMes}${hucha}`, { texto: "Deshacer", fn: () => acc.borrarMovimiento(r.id) });
       }
     } catch (e) {
       setError(e.message);
@@ -111,9 +125,14 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
   async function eliminar() {
     if (!borrar) return setBorrar(true);
     try {
-      await acc.borrarMovimiento(movimiento.id);
+      // Si iba enlazado (recibo pagado desde la hucha) se borran los dos, y «Deshacer» recupera los dos
+      const r = await acc.borrarMovimiento(movimiento.id);
       cerrar();
-      ui.avisar("Movimiento eliminado", { texto: "Deshacer", fn: () => acc.guardarMovimiento(movimiento) });
+      const borrados = r?.borrados || [movimiento];
+      ui.avisar(borrados.length > 1 ? "Gasto y retirada de la hucha eliminados" : "Movimiento eliminado", {
+        texto: "Deshacer",
+        fn: () => acc.restaurarMovimientos(borrados),
+      });
     } catch (e) {
       setError(e.message);
     }
@@ -341,6 +360,14 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
               </button>
             )}
           </div>
+          {pagoHucha && (
+            <div className="pago-hucha">
+              <Interruptor activo={desdeHucha} onCambio={setDesdeHucha} etiqueta="Pagar desde la hucha" descripcion={`«Recibos no mensuales» tiene ${eur(Math.max(0, pagoHucha.saldo))}`} />
+              <p className={`pago-hucha-reparto ${pagoHucha.deCuenta > 0 && desdeHucha ? "falta" : ""}`}>
+                De la hucha {eur(pagoHucha.deHucha, { corto: true })} · de tu cuenta {eur(pagoHucha.deCuenta, { corto: true })}
+              </p>
+            </div>
+          )}
           {verNota && (
             <input
               className="apuntar-nota"
