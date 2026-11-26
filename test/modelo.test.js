@@ -145,3 +145,14 @@ test("eliminar una partida con gastos: pasarlos a la hucha o borrarlos, y deshac
   op.borrarPartida(d, comida.id, { movimientos: "borrar" });
   assert.equal(d.movimientos.length, 0);
 });
+
+test("partida en meses concretos: hay que elegir meses con importe", () => {
+  const { d } = preparar(0);
+  const { r } = op.crearPartida(d, { nombre: "Academia", frecuencia: "Meses concretos", calendario: [{ mes: 3, importe: 25 }, { mes: 5, importe: 40 }] });
+  assert.equal(r.importe, 65);
+  assert.equal(r.cobroAncla, null);
+  assert.throws(() => op.crearPartida(d, { nombre: "Vacía", frecuencia: "Meses concretos", calendario: [] }), /al menos un mes/);
+  assert.throws(() => op.crearPartida(d, { nombre: "Mal", frecuencia: "Meses concretos", calendario: [{ mes: 13, importe: 5 }] }), /mes de cobro no es válido/);
+  // Pasar a otra frecuencia quita los meses
+  assert.equal(op.actualizarPartida(d, r.id, { frecuencia: "Anual", importe: 100, calendario: null }).r.calendario, null);
+});

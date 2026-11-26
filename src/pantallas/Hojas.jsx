@@ -8,7 +8,7 @@ import { Ficha, Icono, ICONOS, ICONOS_OBJETIVO, colorCategoria } from "../lib/ic
 import {
   presupuestoMensual, recibosMes, alertas, ordenar, ordenCategorias, esMensual, gastosPorPartida, movsDeMes, ahorradoObjetivo,
   FRECUENCIAS, CADA, resumenMes, estadoDe, porcentaje, acumuladoAño, anual, objetivosConFijo, OBJETIVO_FIJO, AHORRO_PRINCIPAL,
-  CUENTA_PRINCIPAL, cuentas, cuentaDeAjuste, recibosNoMensualesMes, huchaPeriodicos, proximosCobros, adelantadoAlBanco, mesEnCurso, mesDe, reciboHucha, partidaHuchaDuplicada,
+  CUENTA_PRINCIPAL, cuentas, cuentaDeAjuste, recibosNoMensualesMes, huchaPeriodicos, proximosCobros, tieneCalendario, adelantadoAlBanco, mesEnCurso, mesDe, reciboHucha, partidaHuchaDuplicada,
 } from "../lib/calculos.js";
 import { eur, parseImporte, aInput, nombreMes, mesActual, moverMes, hoyISO, diasEnMes, MESES_CORTOS, mayus, fechaCorta, mesCorto, r2 } from "../lib/formato.js";
 
@@ -118,6 +118,8 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
     recibo: partida?.recibo || false,
     icono: partida?.icono || "paquete",
     cobroAncla: partida?.cobroAncla || "",
+    // «Meses concretos»: { mes: texto del importe }
+    calendario: Object.fromEntries((partida?.calendario || []).map((c) => [c.mes, aInput(c.importe)])),
     vehiculoId: partida?.vehiculoId || "",
     pctCoche: String(partida?.pctCoche ?? 100),
   }));
@@ -126,11 +128,17 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
   const set = (k) => (v) => setF((x) => ({ ...x, [k]: v }));
   const categorias = ordenCategorias(db.partidas);
   const usos = partida ? db.movimientos.filter((m) => m.partidaId === partida.id).length : 0;
-  const importe = f.importe.trim() === "" ? 0 : parseImporte(f.importe);
+  const concretos = f.frecuencia === "Meses concretos";
+  const calendario = Object.entries(f.calendario)
+    .map(([mes, t]) => ({ mes: Number(mes), importe: parseImporte(t) }))
+    .sort((a, b) => a.mes - b.mes);
+  const importe = concretos ? r2(calendario.reduce((s, c) => s + (Number.isFinite(c.importe) ? c.importe : 0), 0)) : f.importe.trim() === "" ? 0 : parseImporte(f.importe);
 
   async function guardar() {
     if (!f.nombre.trim()) return setError("Ponle un nombre a la partida.");
     if (!Number.isFinite(importe) || importe < 0) return setError("El importe debe ser un número, por ejemplo 45,90.");
+    if (concretos && !calendario.length) return setError("Elige al menos un mes de cobro.");
+    if (concretos && calendario.some((c) => !Number.isFinite(c.importe) || c.importe <= 0)) return setError("Pon el importe de cada mes elegido, por ejemplo 40 o 25,50.");
     try {
       const r = await acc.guardarPartida({
         ...(partida || {}),
@@ -138,7 +146,8 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
         nombre: f.nombre.trim(),
         categoria: f.categoria.trim() || "Otros",
         importe,
-        cobroAncla: f.frecuencia !== "Mensual" ? f.cobroAncla || null : null,
+        cobroAncla: f.frecuencia !== "Mensual" && !concretos ? f.cobroAncla || null : null,
+        calendario: concretos ? calendario : null,
         vehiculoId: f.vehiculoId || null,
         pctCoche: f.vehiculoId ? Number(f.pctCoche) || 100 : null,
       });
@@ -256,7 +265,7 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
           </button>
         ))}
       </div>
-      <CampoImporte etiqueta={f.frecuencia === "Mensual" ? "Importe al mes" : "Importe de cada recibo"} valor={f.importe} onCambio={set("importe")} />
+      {!concretos && <CampoImporte etiqueta={f.frecuencia === "Mensual" ? "Importe al mes" : "Importe de cada recibo"} valor={f.importe} onCambio={set("importe")} />}
       <div className="campo">
         <span>Frecuencia</span>
         <div className="chips">
@@ -266,7 +275,47 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
             </button>
           ))}
         </div>
-        {f.frecuencia !== "Mensual" && (
+        {concretos && (
+          <div className="campo">
+            <span>¿En qué meses se cobra?</span>
+            <div className="chips meses-chips" role="group" aria-label="Meses de cobro">
+              {MESES_CORTOS.map((m, i) => {
+                const n = i + 1;
+                const on = n in f.calendario;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    className="chip"
+                    aria-pressed={on}
+                    onClick={() =>
+                      setF((x) => {
+                        const c = { ...x.calendario };
+                        if (on) delete c[n];
+                        else c[n] = "";
+                        return { ...x, calendario: c };
+                      })
+                    }
+                  >
+                    {m}
+                  </button>
+                );
+              })}
+            </div>
+            {calendario.length > 0 && (
+              <div className="meses-importes">
+                {calendario.map((c) => (
+                  <div key={c.mes} className="mes-importe">
+                    <span>{mayus(MESES_CORTOS[c.mes - 1])}</span>
+                    <CampoImporte valor={f.calendario[c.mes]} onCambio={(t) => setF((x) => ({ ...x, calendario: { ...x.calendario, [c.mes]: t } }))} placeholder="0,00" />
+                  </div>
+                ))}
+              </div>
+            )}
+            <small className="ayuda">Cada mes con su importe (por ejemplo, la matrícula de un curso y sus cuotas trimestrales). La hucha lo tiene en cuenta mes a mes.</small>
+          </div>
+        )}
+        {f.frecuencia !== "Mensual" && !concretos && (
           <label className="campo">
             <span>Próximo cobro</span>
             <input type="month" value={f.cobroAncla} onChange={(e) => set("cobroAncla")(e.target.value)} />
@@ -281,7 +330,8 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
         )}
         {f.frecuencia !== "Mensual" && Number.isFinite(importe) && importe > 0 && (
           <small className="ayuda">
-            Son {eur(importe * { Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1 }[f.frecuencia])} al año: aparta {eur((importe * { Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1 }[f.frecuencia]) / 12)} cada mes.
+            Son {eur(importe * { Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1, "Meses concretos": 1 }[f.frecuencia])} al año: aparta{" "}
+            {eur((importe * { Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1, "Meses concretos": 1 }[f.frecuencia]) / 12)} cada mes.
           </small>
         )}
       </div>
@@ -516,7 +566,7 @@ export function HojaRecibos({ mes, cerrar }) {
   const ui = useUI();
   const recibos = recibosMes(db, mes);
   const noMensuales = recibosNoMensualesMes(db, mes);
-  const sinFecha = ordenar(db.partidas.filter((p) => p.activa && p.recibo && !esMensual(p) && p.importe > 0 && !p.cobroAncla));
+  const sinFecha = ordenar(db.partidas.filter((p) => p.activa && p.recibo && !esMensual(p) && p.importe > 0 && !tieneCalendario(p)));
   const pendientes = recibos.filter((x) => !x.hecho);
   // Hoy si es el mes del calendario o el que estás viviendo (diciembre el 30 de
   // noviembre, con su nómina ya ingresada); el recibo cuenta para su mes

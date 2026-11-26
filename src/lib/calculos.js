@@ -3,9 +3,15 @@ import { r2, sum, diasEnMes, fechaDe, iso, sumarDias, moverMes, hoyISO } from ".
 import { OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL, objetivosConFijo, cuentas, cuentaDeAjuste, DIA_CORTE_NOMINA } from "../../shared/modelo.js";
 export { OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL, objetivosConFijo, cuentas, cuentaDeAjuste, DIA_CORTE_NOMINA };
 
-export const FRECUENCIAS = ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual"];
-export const VECES = { Mensual: 12, Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1 };
-export const CADA = { Mensual: "cada mes", Bimestral: "cada 2 meses", Trimestral: "cada 3 meses", Semestral: "cada 6 meses", Anual: "una vez al año" };
+export const FRECUENCIAS = ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual", "Meses concretos"];
+// En «Meses concretos» el importe ya es el total del año
+export const VECES = { Mensual: 12, Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1, "Meses concretos": 1 };
+export const CADA = { Mensual: "cada mes", Bimestral: "cada 2 meses", Trimestral: "cada 3 meses", Semestral: "cada 6 meses", Anual: "una vez al año", "Meses concretos": "al año, en meses concretos" };
+export const esMesesConcretos = (p) => p.frecuencia === "Meses concretos";
+// Lo que se cobra en un mes concreto (en «Meses concretos», el de ese mes)
+export const importeCobro = (p, mes) => (esMesesConcretos(p) ? (p.calendario || []).find((c) => c.mes === Number(mes.slice(5, 7)))?.importe ?? 0 : p.importe);
+// ¿La hucha sabe cuándo se cobra? (próximo cobro o meses concretos)
+export const tieneCalendario = (p) => Boolean(p.cobroAncla) || (esMesesConcretos(p) && (p.calendario || []).length > 0);
 
 export const esMensual = (p) => p.frecuencia === "Mensual";
 export const prorrateo = (p) => (p.importe * VECES[p.frecuencia]) / 12;
@@ -177,7 +183,8 @@ export function recibosNoMensualesMes(db, mes) {
   const gp = gastosPorPartida(movsDeMes(db, mes), db.partidas);
   return ordenar(db.partidas.filter((p) => p.activa && !esMensual(p) && p.importe > 0 && cobraEnMes(p, mes))).map((p) => {
     const pagado = r2(gp.get(p.id) || 0);
-    return { partida: p, pagado, hecho: pagado > 0 };
+    // Con el importe que toca ese mes (en «Meses concretos» cambia según el mes)
+    return { partida: { ...p, importe: importeCobro(p, mes) }, pagado, hecho: pagado > 0 };
   });
 }
 
@@ -460,6 +467,7 @@ const mesesEntre = (a, b) => {
 };
 // ¿Se cobra este recibo en ese mes? Desde el mes del próximo cobro, cada tantos meses
 export function cobraEnMes(p, mes) {
+  if (esMesesConcretos(p)) return importeCobro(p, mes) > 0;
   if (esMensual(p) || !p.cobroAncla) return false;
   const n = mesesEntre(p.cobroAncla, mes);
   return n >= 0 && n % PASO[p.frecuencia] === 0;
@@ -467,6 +475,10 @@ export function cobraEnMes(p, mes) {
 // Los próximos cobros de una partida a partir de un mes
 export function proximosCobros(p, desde, n = 4) {
   const out = [];
+  if (esMesesConcretos(p)) {
+    for (let i = 0, m = desde; i < 24 && out.length < n; i++, m = moverMes(m, 1)) if (cobraEnMes(p, m)) out.push(m);
+    return out;
+  }
   if (esMensual(p) || !p.cobroAncla) return out;
   let m = p.cobroAncla;
   while (m < desde) m = moverMes(m, PASO[p.frecuencia]);
@@ -476,10 +488,10 @@ export function proximosCobros(p, desde, n = 4) {
 // Cobros de los recibos no mensuales en los próximos n meses (contando el actual)
 export function calendarioCobros(db, desde, n = 12) {
   const out = [];
-  const conFecha = ordenar(db.partidas.filter((p) => p.activa && !esMensual(p) && p.importe > 0 && p.cobroAncla));
+  const conFecha = ordenar(db.partidas.filter((p) => p.activa && !esMensual(p) && p.importe > 0 && tieneCalendario(p)));
   for (let k = 0; k < n; k++) {
     const mes = moverMes(desde, k);
-    for (const p of conFecha) if (cobraEnMes(p, mes)) out.push({ mes, k, partida: p, importe: p.importe });
+    for (const p of conFecha) if (cobraEnMes(p, mes)) out.push({ mes, k, partida: p, importe: importeCobro(p, mes) });
   }
   return out;
 }
@@ -509,8 +521,8 @@ export function aportacionHucha(db, mes = mesEnCurso(db)) {
   const saldo = ahorradoObjetivo(db, OBJETIVO_FIJO.id);
 
   const noMensuales = db.partidas.filter((p) => p.activa && !esMensual(p) && p.importe > 0);
-  const sinFecha = r2(sum(noMensuales.filter((p) => !p.cobroAncla), prorrateo));
-  const prorrateoConFecha = sum(noMensuales.filter((p) => p.cobroAncla), prorrateo);
+  const sinFecha = r2(sum(noMensuales.filter((p) => !tieneCalendario(p)), prorrateo));
+  const prorrateoConFecha = sum(noMensuales.filter(tieneCalendario), prorrateo);
   const prorrateoTotal = r2(prorrateoConFecha + sinFecha);
 
   const cobros = calendarioCobros(db, mes, 12);

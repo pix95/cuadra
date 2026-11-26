@@ -6,7 +6,20 @@
 // { r: resultado, cambios: [...] }. "cambios" son las filas tocadas, para
 // poder enviarlas a la nube.
 
-export const FRECUENCIAS = ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual"];
+export const FRECUENCIAS = ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual", "Meses concretos"];
+// «Meses concretos»: la partida cobra en los meses que elijas, cada uno con su
+// importe (por ejemplo, un curso con matrícula al empezar y cuotas trimestrales).
+// Su importe es el total del año.
+export const MESES_CONCRETOS = "Meses concretos";
+export function normalizarCalendario(c) {
+  const out = new Map();
+  for (const x of Array.isArray(c) ? c : []) {
+    const mes = Math.round(Number(x?.mes));
+    const importe = r2(Number(x?.importe));
+    if (mes >= 1 && mes <= 12 && Number.isFinite(importe) && importe > 0) out.set(mes, importe);
+  }
+  return [...out].sort((a, b) => a[0] - b[0]).map(([mes, importe]) => ({ mes, importe }));
+}
 export const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 export const uid = () =>
@@ -103,14 +116,16 @@ export function normalizarPartida(p, i = 0) {
     id: p.id || uid(),
     nombre: String(p.nombre ?? "").trim().slice(0, 60),
     categoria: (String(p.categoria ?? "").trim() || "Otros").slice(0, 40),
-    importe: r2(Math.max(0, Number(p.importe) || 0)),
+    importe:
+      p.frecuencia === MESES_CONCRETOS ? r2(normalizarCalendario(p.calendario).reduce((s, x) => s + x.importe, 0)) : r2(Math.max(0, Number(p.importe) || 0)),
     frecuencia: FRECUENCIAS.includes(p.frecuencia) ? p.frecuencia : "Mensual",
+    calendario: p.frecuencia === MESES_CONCRETOS ? normalizarCalendario(p.calendario) : null,
     recibo: Boolean(p.recibo),
     icono: typeof p.icono === "string" && p.icono ? p.icono.slice(0, 30) : "paquete",
     orden: Number.isFinite(Number(p.orden)) ? Number(p.orden) : i,
     activa: p.activa !== false,
     // Mes del próximo cobro de un recibo no mensual ("AAAA-MM"); sin él, es un fondo sin fecha
-    cobroAncla: (p.frecuencia ?? "Mensual") !== "Mensual" && esMes(p.cobroAncla) ? p.cobroAncla : null,
+    cobroAncla: (p.frecuencia ?? "Mensual") !== "Mensual" && p.frecuencia !== MESES_CONCRETOS && esMes(p.cobroAncla) ? p.cobroAncla : null,
     // Partida «del coche» (seguro, impuesto…): de qué vehículo y qué parte es suya
     vehiculoId: UUID.test(String(p.vehiculoId ?? "")) ? String(p.vehiculoId) : null,
     pctCoche: UUID.test(String(p.vehiculoId ?? "")) ? Math.min(100, Math.max(1, Math.round(Number(p.pctCoche) || 100))) : null,
@@ -186,6 +201,17 @@ function validarPartida(b, base = {}) {
     if (b.cobroAncla && !esMes(b.cobroAncla)) falla("El mes del próximo cobro no es válido.");
     p.cobroAncla = b.cobroAncla || null;
   }
+  if ("calendario" in b) {
+    if (b.calendario != null && !Array.isArray(b.calendario)) falla("Los meses de cobro no son válidos.");
+    for (const x of b.calendario || []) {
+      const mes = Number(x?.mes);
+      if (!Number.isInteger(mes) || mes < 1 || mes > 12) falla("Un mes de cobro no es válido.");
+      numero(x?.importe, "El importe de cada mes", { min: 0.01, max: 1e7 });
+    }
+    p.calendario = b.calendario || null;
+  }
+  if ((p.frecuencia ?? base.frecuencia) === MESES_CONCRETOS && !normalizarCalendario(p.calendario ?? base.calendario).length)
+    falla("Elige al menos un mes de cobro con su importe.");
   if ("vehiculoId" in b) {
     if (b.vehiculoId && !UUID.test(String(b.vehiculoId))) falla("El vehículo no es válido.");
     p.vehiculoId = b.vehiculoId || null;

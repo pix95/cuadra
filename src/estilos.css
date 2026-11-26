@@ -3821,3 +3821,25 @@ button.recibo-ok:active {
   margin-top: 10px;
   opacity: 0.85;
 }
+
+/* Partida en «Meses concretos»: el importe de cada mes */
+.meses-importes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+.mes-importe {
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+  color: var(--texto-2);
+}
+.mes-importe .campo {
+  margin-top: 0;
+}
+.mes-importe .campo-importe input {
+  min-height: 44px;
+}

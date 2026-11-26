@@ -17,7 +17,7 @@ const aFila = {
   partidas: (p) => ({
     id: p.id, nombre: p.nombre, categoria: p.categoria, importe: p.importe, frecuencia: p.frecuencia, orden: Math.round(p.orden),
     activa: p.activa, recibo: p.recibo, icono: p.icono, cobro_ancla: p.cobroAncla ?? null,
-    vehiculo_id: p.vehiculoId ?? null, pct_coche: p.pctCoche ?? null,
+    vehiculo_id: p.vehiculoId ?? null, pct_coche: p.pctCoche ?? null, calendario: p.calendario ?? null,
   }),
   movimientos: (m) => ({
     id: m.id, tipo: m.tipo, fecha: m.fecha, importe: m.importe, partida_id: m.partidaId, objetivo_id: m.objetivoId,

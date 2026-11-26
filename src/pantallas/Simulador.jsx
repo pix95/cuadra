@@ -423,7 +423,7 @@ function Editor({ inicial, onVolver, onAbrir }) {
               <label className="campo">
                 <span>Frecuencia</span>
                 <select className="select" value={nueva.frecuencia || "Mensual"} onChange={(e) => setNueva({ ...nueva, frecuencia: e.target.value })}>
-                  {FRECUENCIAS.map((f) => (
+                  {FRECUENCIAS.filter((f) => f !== "Meses concretos").map((f) => (
                     <option key={f}>{f}</option>
                   ))}
                 </select>

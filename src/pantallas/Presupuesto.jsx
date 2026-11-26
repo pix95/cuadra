@@ -143,7 +143,7 @@ function FilaPartida({ p, onClick }) {
       </span>
       <span className="fila-partida-imp">
         {eur(p.importe)}
-        {!esMensual(p) && <small>por recibo</small>}
+        {!esMensual(p) && <small>{p.frecuencia === "Meses concretos" ? "al año" : "por recibo"}</small>}
       </span>
     </button>
   );

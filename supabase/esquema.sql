@@ -23,6 +23,8 @@ alter table public.partidas add column if not exists recibo boolean not null def
 alter table public.partidas add column if not exists icono text not null default 'paquete';
 -- 2.1: mes del próximo cobro de un recibo no mensual ("2027-06")
 alter table public.partidas add column if not exists cobro_ancla text;
+-- «Meses concretos»: en qué meses cobra y cuánto cada uno ([{"mes": 3, "importe": 25}, …])
+alter table public.partidas add column if not exists calendario jsonb;
 
 -- ---------- Objetivos de ahorro ----------
 create table if not exists public.objetivos (

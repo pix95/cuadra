@@ -6,8 +6,10 @@ import {
   resumenMes, saldoCuentaAl, primerMesCuenta, propuestaCierre, cobraEnMes, proximosCobros, calendarioCobros,
   aportacionHucha, recibosNoMensualesMes, partidasFrecuentes, ahorradoObjetivo, evolucionAhorro, alertas,
   mesDeNomina, importeNomina, nominaDeHoy, adelantadoAlBanco, reciboHucha, partidaHuchaDuplicada, mesEnCurso, mesPropuesto, analisisPeriodo,
-  OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL,
+  prorrateo, OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL,
 } from "../src/lib/calculos.js";
+import { normalizarPartida } from "../shared/modelo.js";
+import { r2 } from "../src/lib/formato.js";
 
 let n = 0;
 const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`;
@@ -309,4 +311,16 @@ test("apartar a la hucha como un recibo del mes: lo que falta y cuándo está he
   db.movimientos.push(mov({ tipo: "ahorro", objetivoId: OBJETIVO_FIJO.id, fecha: "2030-03-20", importe: 40 }));
   assert.equal(reciboHucha(db, "2030-03").hecho, true);
   assert.equal(partidaHuchaDuplicada(db)?.nombre, "Recibos no mensuales (a mano)");
+});
+
+test("meses concretos: cada mes con su importe (matrícula y cuotas en meses sueltos)", () => {
+  const academia = normalizarPartida({ id: id(), nombre: "Academia", frecuencia: "Meses concretos", recibo: true, calendario: [{ mes: 7, importe: 40 }, { mes: 3, importe: 25 }, { mes: 11, importe: 40 }, { mes: 5, importe: 40 }] });
+  assert.equal(academia.importe, 145, "el importe es el total del año");
+  assert.equal(r2(prorrateo(academia)), 12.08);
+  assert.deepEqual(proximosCobros(academia, "2030-06", 4), ["2030-07", "2030-11", "2031-03", "2031-05"]);
+  const db = base({ partidas: [academia] });
+  assert.deepEqual(recibosNoMensualesMes(db, "2031-03").map((x) => x.partida.importe), [25]);
+  assert.deepEqual(recibosNoMensualesMes(db, "2031-02"), []);
+  assert.deepEqual(calendarioCobros(db, "2030-12", 12).map((c) => [c.mes, c.importe]), [["2031-03", 25], ["2031-05", 40], ["2031-07", 40], ["2031-11", 40]]);
+  assert.equal(aportacionHucha(db, "2030-12").sinFecha, 0, "la hucha sabe cuándo cobra");
 });
