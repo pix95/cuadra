@@ -25,6 +25,24 @@ alter table public.partidas add column if not exists icono text not null default
 alter table public.partidas add column if not exists cobro_ancla text;
 -- «Meses concretos»: en qué meses cobra y cuánto cada uno ([{"mes": 3, "importe": 25}, …])
 alter table public.partidas add column if not exists calendario jsonb;
+-- La versión antigua podía limitar la frecuencia a Mensual…Anual: se quita esa
+-- regla para que se pueda guardar «Meses concretos» (la app ya lo valida)
+do $$
+declare
+  r record;
+begin
+  for r in
+    select con.conname
+    from pg_constraint con
+    join pg_class rel on rel.oid = con.conrelid
+    join pg_namespace nsp on nsp.oid = rel.relnamespace
+    where nsp.nspname = 'public' and rel.relname = 'partidas' and con.contype = 'c'
+      and pg_get_constraintdef(con.oid) ilike '%frecuencia%'
+  loop
+    execute format('alter table public.partidas drop constraint %I', r.conname);
+  end loop;
+end
+$$;
 
 -- ---------- Objetivos de ahorro ----------
 create table if not exists public.objetivos (

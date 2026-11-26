@@ -225,7 +225,8 @@ export function motorSupabase({ url, clave, cliente = null }) {
         // Datos que la base de datos rechaza: reintentar no lo arreglaría
         if (/^(22|23)/.test(String(r.error.code || "")) && lote === 1) {
           console.warn("Cambio descartado", o, r.error);
-          L.aviso?.("Un cambio no se ha podido guardar en la nube y se ha descartado.");
+          const que = { partidas: "una partida", movimientos: "un movimiento", meses: "la nómina", ajustes: "los ajustes", objetivos: "un objetivo" }[o.tabla] || o.tabla;
+          L.aviso?.(`No se ha podido guardar ${que} en la nube y se ha descartado (${r.error.message || r.error.code}). Ejecuta de nuevo supabase/esquema.sql y vuelve a guardarlo.`);
           cola.shift();
           guardarLocal();
           continue;
