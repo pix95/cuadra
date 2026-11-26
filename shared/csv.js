@@ -1,7 +1,7 @@
 // Exportar e importar movimientos en CSV (separado por ";" para que Excel en
 // español lo abra bien). La importación acepta también el CSV de la versión
 // anterior de Cuadra: Fecha;Importe;Partida;Categoría;Concepto.
-import { uid, r2, normalizarPartida, ErrorDatos, objetivosConFijo, cuentas, cuentaDeAjuste } from "./modelo.js";
+import { uid, r2, normalizarPartida, ErrorDatos, objetivosConFijo, cuentas, cuentaDeAjuste, TIPOS_MANTENIMIENTO } from "./modelo.js";
 
 // Los "inicial" antiguos se exportan como ajuste de Ahorros principales
 const TIPOS = { gasto: "Gasto", ingreso: "Ingreso", ahorro: "Ahorro", ajuste: "Ajuste", inicial: "Ajuste" };
@@ -23,14 +23,26 @@ const norm = (s) =>
 export function exportarCSV(d) {
   const partidas = new Map(d.partidas.map((p) => [p.id, p]));
   const objetivos = new Map(cuentas(d).map((o) => [o.id, o]));
-  const filas = [["Fecha", "Tipo", "Importe", "Partida", "Categoría", "Objetivo", "Concepto"]];
+  // Coche: el repostaje o el mantenimiento enlazado va en columnas aparte
+  const vehiculos = new Map((d.vehiculos || []).map((v) => [v.id, v]));
+  const repostaje = new Map((d.repostajes || []).filter((r) => r.movimientoId).map((r) => [r.movimientoId, r]));
+  const mant = new Map((d.mantenimientos || []).filter((m) => m.movimientoId).map((m) => [m.movimientoId, m]));
+  const dec = (n) => Number(n).toFixed(2).replace(".", ",");
+  const filas = [["Fecha", "Tipo", "Importe", "Partida", "Categoría", "Objetivo", "Concepto", "Vehículo", "Litros", "Km", "Lleno", "Gasolinera", "Mantenimiento", "Taller", "Notas"]];
   [...d.movimientos]
     .sort((a, b) => a.fecha.localeCompare(b.fecha) || String(a.creado).localeCompare(String(b.creado)))
     .forEach((m) => {
       const p = partidas.get(m.partidaId);
       // En los ajustes, la columna «Objetivo» es la cuenta ajustada
       const o = objetivos.get(m.tipo === "ajuste" || m.tipo === "inicial" ? cuentaDeAjuste(m) : m.objetivoId);
-      filas.push([m.fecha, TIPOS[m.tipo] || m.tipo, Number(m.importe).toFixed(2).replace(".", ","), p ? p.nombre : "", p ? p.categoria : "", o ? o.nombre : "", m.concepto]);
+      const r = repostaje.get(m.id);
+      const x = mant.get(m.id);
+      const coche = r
+        ? [vehiculos.get(r.vehiculoId)?.nombre || "", dec(r.litros), r.km, r.lleno ? "Sí" : "No", r.gasolinera, "", "", ""]
+        : x
+          ? [vehiculos.get(x.vehiculoId)?.nombre || "", "", x.km ?? "", "", "", TIPOS_MANTENIMIENTO[x.tipo] || x.tipo, x.taller, x.notas]
+          : ["", "", "", "", "", "", "", ""];
+      filas.push([m.fecha, TIPOS[m.tipo] || m.tipo, dec(m.importe), p ? p.nombre : "", p ? p.categoria : "", o ? o.nombre : "", m.concepto, ...coche]);
     });
   return "﻿" + filas.map((f) => f.map(celda).join(";")).join("\r\n");
 }
@@ -103,8 +115,21 @@ export function importarCSV(d, csv) {
   const iCategoria = col("categoria");
   const iObjetivo = col("objetivo");
   const iConcepto = col("concepto");
+  // Columnas del coche (opcionales)
+  const iVehiculo = col("vehiculo");
+  const iLitros = col("litros");
+  const iKm = col("km");
+  const iLleno = col("lleno");
+  const iGasolinera = col("gasolinera");
+  const iMant = col("mantenimiento");
+  const iTaller = col("taller");
+  const iNotas = col("notas");
+  const celdaDe = (f, i) => (i >= 0 ? String(f[i] ?? "").trim() : "");
+  const vehiculos = d.vehiculos || [];
+  const tipoMant = new Map(Object.entries(TIPOS_MANTENIMIENTO).map(([k, t]) => [norm(t), k]));
+  const cambiosCoche = [];
 
-  const resumen = { importados: 0, repetidos: 0, errores: 0, partidasNuevas: [], objetivosNuevos: [] };
+  const resumen = { importados: 0, repetidos: 0, errores: 0, partidasNuevas: [], objetivosNuevos: [], repostajes: 0, mantenimientos: 0, cocheSinVehiculo: 0 };
   const cambiosPrevios = []; // partidas y objetivos nuevos (van antes que sus movimientos)
   const cambiosMovs = [];
 
@@ -193,6 +218,33 @@ export function importarCSV(d, csv) {
     d.movimientos.push(m);
     cambiosMovs.push({ tabla: "movimientos", tipo: "upsert", id: m.id, fila: { ...m } });
     resumen.importados++;
+
+    // Repostaje o mantenimiento del gasto: al vehículo con ese nombre, o al que
+    // use esa partida, o al único que haya
+    const litros = leerImporte(celdaDe(f, iLitros));
+    const kmTxt = celdaDe(f, iKm).replace(/\D/g, "");
+    const km = kmTxt ? Number(kmTxt) : null;
+    const tMant = tipoMant.get(norm(celdaDe(f, iMant)));
+    if (tipo === "gasto" && ((litros > 0 && km != null) || tMant)) {
+      const nv = norm(celdaDe(f, iVehiculo));
+      const v =
+        (nv && vehiculos.find((x) => norm(x.nombre) === nv)) ||
+        vehiculos.find((x) => (tMant ? x.partidaMantenimiento : x.partidaCombustible) === partidaId) ||
+        (vehiculos.length === 1 ? vehiculos[0] : null);
+      if (!v) resumen.cocheSinVehiculo++;
+      else if (tMant) {
+        const x = { id: uid(), vehiculoId: v.id, fecha, km, tipo: tMant, importe, taller: celdaDe(f, iTaller).slice(0, 60), notas: celdaDe(f, iNotas).slice(0, 300), movimientoId: m.id };
+        d.mantenimientos.push(x);
+        cambiosCoche.push({ tabla: "mantenimientos", tipo: "upsert", id: x.id, fila: { ...x } });
+        resumen.mantenimientos++;
+      } else {
+        const lleno = !/^n/.test(norm(celdaDe(f, iLleno)));
+        const x = { id: uid(), vehiculoId: v.id, fecha, km, litros, importe, lleno, gasolinera: celdaDe(f, iGasolinera).slice(0, 60), movimientoId: m.id };
+        d.repostajes.push(x);
+        cambiosCoche.push({ tabla: "repostajes", tipo: "upsert", id: x.id, fila: { ...x } });
+        resumen.repostajes++;
+      }
+    }
   }
-  return { r: resumen, cambios: [...cambiosPrevios, ...cambiosMovs] };
+  return { r: resumen, cambios: [...cambiosPrevios, ...cambiosMovs, ...cambiosCoche] };
 }
