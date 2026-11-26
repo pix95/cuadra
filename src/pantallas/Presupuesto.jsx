@@ -35,7 +35,7 @@ export default function Presupuesto() {
         </button>
       </header>
 
-      <section className="cuadre-tarjeta">
+      <section className="cuadre-tarjeta area-cuadre">
         <div className="cuadre-arriba">
           <button type="button" className="cuadre-sueldo" onClick={() => ui.abrir("sueldo", { mes: ui.mes })}>
             <small>Sueldo de {nombreMes(ui.mes)}</small>
@@ -73,7 +73,7 @@ export default function Presupuesto() {
       </section>
 
       {pres.periodico > 0 && (
-        <div className="nota-hucha">
+        <div className="nota-hucha area-nota">
           <PiggyBank size={22} />
           <p>
             Para los pagos que no son mensuales aparta <b>{eur(pres.periodico)} al mes</b> ({eur(sum(activas.filter((p) => !esMensual(p)), (p) => p.importe * { Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1 }[p.frecuencia]), { corto: true })} al año).
@@ -81,46 +81,48 @@ export default function Presupuesto() {
         </div>
       )}
 
-      <div className="fila-botones">
+      <div className="fila-botones area-botones">
         <button type="button" className="btn btn-primario" onClick={() => ui.abrir("partida")}>
           <Plus size={18} /> Nueva partida
         </button>
       </div>
 
-      {ordenCategorias(activas).map((cat) => {
-        const ps = ordenar(activas.filter((p) => p.categoria === cat));
-        return (
-          <section key={cat} className="grupo">
-            <div className="grupo-cab">
-              <h3 className="grupo-titulo">{cat}</h3>
-              <span className="tenue">{eur(sum(ps, previstoMes))}/mes</span>
-            </div>
-            <div className="lista">
-              {ps.map((p) => (
-                <FilaPartida key={p.id} p={p} onClick={() => ui.abrir("partida", { partida: p })} />
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      <div className="presupuesto-partidas">
+        {ordenCategorias(activas).map((cat) => {
+          const ps = ordenar(activas.filter((p) => p.categoria === cat));
+          return (
+            <section key={cat} className="grupo">
+              <div className="grupo-cab">
+                <h3 className="grupo-titulo">{cat}</h3>
+                <span className="tenue">{eur(sum(ps, previstoMes))}/mes</span>
+              </div>
+              <div className="lista">
+                {ps.map((p) => (
+                  <FilaPartida key={p.id} p={p} onClick={() => ui.abrir("partida", { partida: p })} />
+                ))}
+              </div>
+            </section>
+          );
+        })}
 
-      {archivadas.length > 0 && (
-        <section className="grupo">
-          <button type="button" className="desplegar" aria-expanded={verArchivadas} onClick={() => setVerArchivadas(!verArchivadas)}>
-            Archivadas ({archivadas.length}) <ChevronDown size={16} />
-          </button>
-          {verArchivadas && (
-            <div className="lista archivadas">
-              {archivadas.map((p) => (
-                <FilaPartida key={p.id} p={p} onClick={() => ui.abrir("partida", { partida: p })} />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
+        {archivadas.length > 0 && (
+          <section className="grupo">
+            <button type="button" className="desplegar" aria-expanded={verArchivadas} onClick={() => setVerArchivadas(!verArchivadas)}>
+              Archivadas ({archivadas.length}) <ChevronDown size={16} />
+            </button>
+            {verArchivadas && (
+              <div className="lista archivadas">
+                {archivadas.map((p) => (
+                  <FilaPartida key={p.id} p={p} onClick={() => ui.abrir("partida", { partida: p })} />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+      </div>
 
       {sueldo == null && (
-        <button type="button" className="tarjeta aviso-sueldo" onClick={() => ui.abrir("sueldo", { mes: ui.mes })}>
+        <button type="button" className="tarjeta aviso-sueldo area-aviso" onClick={() => ui.abrir("sueldo", { mes: ui.mes })}>
           <Banknote size={20} /> Elige el sueldo de {nombreMes(ui.mes)} para ver tu margen
         </button>
       )}

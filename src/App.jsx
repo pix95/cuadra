@@ -131,6 +131,10 @@ function Marco() {
       </main>
 
       <nav className="nav" aria-label="Secciones">
+        <div className="nav-marca" aria-hidden="true">
+          <img src={ICONO} alt="" width="34" height="34" />
+          <b>Cuadra</b>
+        </div>
         {PESTAÑAS.map(({ id, texto, Icono }) => (
           <button
             key={id}

@@ -76,7 +76,7 @@ export default function Analisis() {
         ]}
       />
 
-      <section className="resumen-periodo">
+      <section className="resumen-periodo area-resumen">
         <div>
           <div className="periodo-nav">
             <button type="button" className="boton-redondo mini" onClick={() => mover(-1)} aria-label="Periodo anterior">
@@ -107,7 +107,7 @@ export default function Analisis() {
         </Anillo>
       </section>
 
-      <section className="tarjeta">
+      <section className="tarjeta area-grafico">
         <div className="tarjeta-cab">
           <h2>{tipo === "año" ? "Gasto variable por mes" : "Gasto variable diario"}</h2>
           {a.media > 0 && (
@@ -123,7 +123,7 @@ export default function Analisis() {
         <GraficoBarras datos={datos} media={a.media} etiquetas={etiquetas} />
       </section>
 
-      <section className="seccion">
+      <section className="seccion area-categorias">
         <div className="seccion-cab">
           <h2>Por categorías</h2>
           {a.categorias.length > 4 && (
@@ -197,7 +197,7 @@ function EstadoPartidas() {
 
   return (
     <>
-      <section className="seccion">
+      <section className="seccion area-resto">
         <div className="seccion-cab">
           <h2>Partidas de {nombreMes(ui.mes)}</h2>
           <span className="tenue">Toca para apuntar</span>
@@ -213,7 +213,7 @@ function EstadoPartidas() {
       </section>
 
       {periodicas.length > 0 && (
-        <section className="seccion">
+        <section className="seccion area-resto">
           <div className="seccion-cab">
             <h2>Pagos periódicos</h2>
             <span className="tenue">Acumulado {ui.mes.slice(0, 4)}</span>
@@ -240,7 +240,7 @@ function ResumenAño() {
   if (!filas.length) return null;
   const totalSobra = r2(filas.reduce((s, r) => s + r.disponible, 0));
   return (
-    <section className="seccion">
+    <section className="seccion area-resto">
       <div className="seccion-cab">
         <h2>Mes a mes</h2>
         <span className={totalSobra >= 0 ? "positivo" : "negativo"}>{eur(totalSobra, { signo: true })} en total</span>

@@ -44,37 +44,41 @@ export default function Inicio() {
         </button>
       </header>
 
-      <div className="acciones">
-        <Accion principal icono={<ArrowUpRight size={24} />} texto="Gasto" onClick={() => ui.abrir("apuntar", { tipo: "gasto" })} />
-        <Accion icono={<ArrowDownLeft size={24} />} texto="Ingreso" onClick={() => ui.abrir("apuntar", { tipo: "ingreso" })} />
-        <Accion icono={<Banknote size={24} />} texto="Sueldo" onClick={() => ui.abrir("sueldo", { mes: ui.mes })} />
-      </div>
-
-      <TarjetaSaldo r={r} mesTxt={mesTxt} />
-
-      <PropuestaCierre />
-
-      {recibos.length > 0 && <TarjetaRecibos recibos={recibos} mesTxt={mesTxt} />}
-
-      <section className="seccion">
-        <div className="seccion-cab">
-          <h2>Actividad reciente</h2>
-          <button type="button" className="enlace" onClick={() => ui.irA("movimientos")}>
-            Ver todo
-          </button>
-        </div>
-        {r.movs.length ? (
-          <div className="lista">
-            {ordenarMovs(r.movs)
-              .slice(0, 6)
-              .map((m) => (
-                <FilaMovimiento key={m.id} m={m} db={db} onClick={() => ui.abrir("apuntar", { movimiento: m })} />
-              ))}
+      <div className="inicio-cols">
+        <div className="col-a">
+          <div className="acciones">
+            <Accion principal icono={<ArrowUpRight size={24} />} texto="Gasto" onClick={() => ui.abrir("apuntar", { tipo: "gasto" })} />
+            <Accion icono={<ArrowDownLeft size={24} />} texto="Ingreso" onClick={() => ui.abrir("apuntar", { tipo: "ingreso" })} />
+            <Accion icono={<Banknote size={24} />} texto="Sueldo" onClick={() => ui.abrir("sueldo", { mes: ui.mes })} />
           </div>
-        ) : (
-          <Vacio titulo={`Nada apuntado en ${mesTxt}`}>Pulsa «Gasto» para apuntar el primero.</Vacio>
-        )}
-      </section>
+
+          <TarjetaSaldo r={r} mesTxt={mesTxt} />
+
+          <PropuestaCierre />
+
+          {recibos.length > 0 && <TarjetaRecibos recibos={recibos} mesTxt={mesTxt} />}
+        </div>
+
+        <section className="seccion col-b">
+          <div className="seccion-cab">
+            <h2>Actividad reciente</h2>
+            <button type="button" className="enlace" onClick={() => ui.irA("movimientos")}>
+              Ver todo
+            </button>
+          </div>
+          {r.movs.length ? (
+            <div className="lista">
+              {ordenarMovs(r.movs)
+                .slice(0, 6)
+                .map((m) => (
+                  <FilaMovimiento key={m.id} m={m} db={db} onClick={() => ui.abrir("apuntar", { movimiento: m })} />
+                ))}
+            </div>
+          ) : (
+            <Vacio titulo={`Nada apuntado en ${mesTxt}`}>Pulsa «Gasto» para apuntar el primero.</Vacio>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

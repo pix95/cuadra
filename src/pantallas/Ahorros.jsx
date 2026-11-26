@@ -27,7 +27,7 @@ export default function Ahorros() {
 
       <PropuestaCierre />
 
-      <section className="saldo ahorro-total">
+      <section className="saldo ahorro-total area-principal">
         <div className="saldo-arriba">
           <span className="saldo-etq">Ahorros principales</span>
           <button
@@ -49,11 +49,11 @@ export default function Ahorros() {
       </section>
 
       {/* Por defecto va a Ahorros principales; ahí se puede elegir otro destino */}
-      <button type="button" className="btn btn-primario ahorro-apartar" onClick={() => ui.abrir("apuntar", { tipo: "ahorro", objetivoId: AHORRO_PRINCIPAL.id })}>
+      <button type="button" className="btn btn-primario ahorro-apartar area-mover" onClick={() => ui.abrir("apuntar", { tipo: "ahorro", objetivoId: AHORRO_PRINCIPAL.id })}>
         <ArrowDownToLine size={18} /> Mover ahorros
       </button>
 
-      <section className="seccion">
+      <section className="seccion area-objetivos">
         <div className="seccion-cab">
           <h2>Objetivos</h2>
         </div>
@@ -99,7 +99,7 @@ export default function Ahorros() {
         </div>
       </section>
 
-      <div className="tarjeta entre-cuentas">
+      <div className="tarjeta entre-cuentas area-entre">
         <div className="entre-cuentas-cab">
           <span>Entre todos tus ahorros</span>
           <b>{eur(cuentas.total)}</b>
@@ -110,7 +110,7 @@ export default function Ahorros() {
       </div>
 
       {/* Ahorros + lo que te queda en la cuenta este mes */}
-      <div className="tarjeta entre-cuentas todo-tu-dinero">
+      <div className="tarjeta entre-cuentas todo-tu-dinero area-todo">
         <div className="entre-cuentas-cab">
           <span>Todo tu dinero</span>
           <b>{eur(cuentas.total + cuenta.disponible)}</b>
@@ -147,7 +147,7 @@ function Evolucion() {
     titulo: `${mayus(MESES[Number(x.mes.slice(5)) - 1])}${x.pct != null ? ` · ${Math.round(x.pct)} %` : ""}`,
   }));
   return (
-    <section className="tarjeta">
+    <section className="tarjeta area-evol">
       <div className="tarjeta-cab">
         <h2>Ahorro de cada mes</h2>
         {media > 0 && <span className="tenue">Media {eur(media, { corto: true })}/mes</span>}
