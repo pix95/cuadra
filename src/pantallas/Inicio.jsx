@@ -1,6 +1,6 @@
 import { ArrowUpRight, ArrowDownLeft, Banknote, Bell, Search, ChevronDown, TrendingUp, TrendingDown, ChevronRight, Scale, Settings, CircleCheck, Car } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { resumenMes, recibosMes, recibosNoMensualesMes, alertas, nominaDeHoy, avisosCoche, CUENTA_PRINCIPAL } from "../lib/calculos.js";
+import { resumenMes, recibosMes, recibosNoMensualesMes, alertas, nominaDeHoy, avisosCoche, reciboHucha, CUENTA_PRINCIPAL } from "../lib/calculos.js";
 import { eur, nombreMes, mesCorto, saludo, pct, moverMes, fechaCorta } from "../lib/formato.js";
 import { Cifra, Sparkline, Vacio } from "../components/comunes.jsx";
 import { Ficha } from "../lib/iconos.jsx";
@@ -57,7 +57,7 @@ export default function Inicio() {
 
           <PropuestaCierre />
 
-          {recibos.length + recibosNM.length > 0 && <TarjetaRecibos recibos={recibos} noMensuales={recibosNM} mesTxt={mesTxt} />}
+          {recibos.length + recibosNM.length > 0 && <TarjetaRecibos recibos={recibos} noMensuales={recibosNM} hucha={reciboHucha(db, ui.mes)} mesTxt={mesTxt} />}
 
           <TarjetaCoche db={db} />
         </div>
@@ -204,8 +204,10 @@ function TarjetaCoche({ db }) {
   );
 }
 
-function TarjetaRecibos({ recibos: mensuales, noMensuales = [], mesTxt }) {
-  const recibos = [...mensuales, ...noMensuales];
+function TarjetaRecibos({ recibos: mensuales, noMensuales = [], hucha = null, mesTxt }) {
+  // Apartar a la hucha cuenta como un recibo más
+  const filaHucha = hucha ? [{ partida: { id: "hucha", nombre: "Apartar a la hucha", importe: hucha.falta }, hecho: hucha.hecho }] : [];
+  const recibos = [...mensuales, ...filaHucha, ...noMensuales];
   const ui = useUI();
   const hechos = recibos.filter((x) => x.hecho).length;
   const faltan = recibos.filter((x) => !x.hecho).reduce((s, x) => s + x.partida.importe, 0);

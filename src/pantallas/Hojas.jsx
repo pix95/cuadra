@@ -8,7 +8,7 @@ import { Ficha, Icono, ICONOS, ICONOS_OBJETIVO, colorCategoria } from "../lib/ic
 import {
   presupuestoMensual, recibosMes, alertas, ordenar, ordenCategorias, esMensual, gastosPorPartida, movsDeMes, ahorradoObjetivo,
   FRECUENCIAS, CADA, resumenMes, estadoDe, porcentaje, acumuladoAño, anual, objetivosConFijo, OBJETIVO_FIJO, AHORRO_PRINCIPAL,
-  CUENTA_PRINCIPAL, cuentas, cuentaDeAjuste, recibosNoMensualesMes, huchaPeriodicos, proximosCobros, adelantadoAlBanco, mesEnCurso, mesDe,
+  CUENTA_PRINCIPAL, cuentas, cuentaDeAjuste, recibosNoMensualesMes, huchaPeriodicos, proximosCobros, adelantadoAlBanco, mesEnCurso, mesDe, reciboHucha, partidaHuchaDuplicada,
 } from "../lib/calculos.js";
 import { eur, parseImporte, aInput, nombreMes, mesActual, moverMes, hoyISO, diasEnMes, MESES_CORTOS, mayus, fechaCorta, mesCorto, r2 } from "../lib/formato.js";
 
@@ -494,7 +494,54 @@ export function HojaRecibos({ mes, cerrar }) {
         ? `${mes}-${String(diasEnMes(mes)).padStart(2, "0")}`
         : `${mes}-01`;
   const hucha = huchaPeriodicos(db, mes);
+  const rHucha = reciboHucha(db, mes);
+  const duplicada = partidaHuchaDuplicada(db);
   const [ocupado, setOcupado] = useState(false);
+
+  // Apartar a la hucha lo que falta este mes: es un ahorro, no un gasto
+  async function apartarHucha() {
+    if (!rHucha || rHucha.falta < 0.01) return;
+    setOcupado(true);
+    try {
+      const m = await acc.guardarMovimiento({ tipo: "ahorro", objetivoId: OBJETIVO_FIJO.id, fecha, mes, importe: rHucha.falta, concepto: "Apartar a la hucha" });
+      ui.avisar(`${eur(rHucha.falta)} a la hucha «Recibos no mensuales»`, { texto: "Deshacer", fn: () => acc.borrarMovimiento(m.id) });
+    } catch (e) {
+      ui.avisar(e.message, null, "mal");
+    } finally {
+      setOcupado(false);
+    }
+  }
+  // Desmarcar: se quita lo apartado a la hucha este mes (no los pagos de recibos)
+  async function desmarcarHucha() {
+    if (ocupado) return;
+    const aportes = movsDeMes(db, mes).filter((m) => m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id && m.importe > 0 && !m.enlace);
+    if (!aportes.length) return;
+    setOcupado(true);
+    try {
+      const borrados = [];
+      for (const m of aportes) {
+        const r = await acc.borrarMovimiento(m.id);
+        borrados.push(...(r?.borrados || [m]));
+      }
+      ui.avisar(`Quitado lo apartado a la hucha en ${nombreMes(mes)}: vuelven ${eur(aportes.reduce((s, m) => s + m.importe, 0))}`, {
+        texto: "Deshacer",
+        fn: () => acc.restaurarMovimientos(borrados),
+      });
+    } catch (e) {
+      ui.avisar(e.message, null, "mal");
+    } finally {
+      setOcupado(false);
+    }
+  }
+  async function archivarDuplicada() {
+    try {
+      await acc.guardarPartida({ ...duplicada, activa: false });
+      ui.avisar(`«${duplicada.nombre}» archivada`, { texto: "Deshacer", fn: () => acc.guardarPartida(duplicada) });
+    } catch (e) {
+      ui.avisar(e.message, null, "mal");
+    }
+  }
+  const huchaPendiente = rHucha && !rHucha.hecho ? 1 : 0;
 
   // Marca recibos como cargados. Los no mensuales se pagan desde la hucha.
   async function cargar(ps) {
@@ -573,14 +620,59 @@ export function HojaRecibos({ mes, cerrar }) {
       subtitulo="Marca cada recibo cuando te lo carguen y se apunta con su importe. Toca el ✓ para desmarcarlo: el dinero vuelve a donde estaba."
       onCerrar={cerrar}
       pie={
-        pendientes.length > 1 ? (
-          <button type="button" className="btn btn-primario" disabled={ocupado} onClick={() => cargar(pendientes.map((x) => x.partida))}>
-            <Check size={16} /> Marcar los {pendientes.length} pendientes ({eur(pendientes.reduce((s, x) => s + x.partida.importe, 0), { corto: true })})
+        pendientes.length + huchaPendiente > 1 ? (
+          <button
+            type="button"
+            className="btn btn-primario"
+            disabled={ocupado}
+            onClick={async () => {
+              if (pendientes.length) await cargar(pendientes.map((x) => x.partida));
+              if (huchaPendiente) await apartarHucha();
+            }}
+          >
+            <Check size={16} /> Marcar los {pendientes.length + huchaPendiente} pendientes (
+            {eur(pendientes.reduce((s, x) => s + x.partida.importe, 0) + (huchaPendiente ? rHucha.falta : 0), { corto: true })})
           </button>
         ) : null
       }
     >
-      <div className="lista">{recibos.map((x) => fila(x))}</div>
+      <div className="lista">
+        {recibos.map((x) => fila(x))}
+        {rHucha && (
+          <div className={`recibo ${rHucha.hecho ? "hecho" : ""}`}>
+            <Ficha icono="hucha" color="#f6a57c" size={42} />
+            <span className="recibo-txt">
+              <b>Apartar a la hucha</b>
+              <small>
+                {rHucha.hecho
+                  ? `Apartado ${eur(rHucha.apartado)}${rHucha.apartado - rHucha.sugerida >= 1 ? ` (tocaba ${eur(rHucha.sugerida)})` : ""}`
+                  : rHucha.apartado > 0
+                    ? `Faltan ${eur(rHucha.falta)} (de ${eur(rHucha.sugerida)})`
+                    : `Toca ${eur(rHucha.sugerida)}`}
+                {" · Recibos no mensuales"}
+              </small>
+            </span>
+            {rHucha.hecho ? (
+              <button type="button" className="recibo-ok" disabled={ocupado} onClick={desmarcarHucha} aria-label="Quitar lo apartado a la hucha" title="Desmarcar">
+                <Check size={18} className="si" />
+                <X size={18} className="no" />
+              </button>
+            ) : (
+              <button type="button" className="chip" disabled={ocupado} onClick={apartarHucha}>
+                Apartado
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      {duplicada && rHucha && (
+        <div className="aviso-linea">
+          <span>Tienes la partida «{duplicada.nombre}» y además la hucha: se cuenta dos veces. Archívala; lo que hayas apuntado en ella no se borra.</span>{" "}
+          <button type="button" className="chip" onClick={archivarDuplicada}>
+            <Archive size={15} /> Archivar
+          </button>
+        </div>
+      )}
       {(noMensuales.length > 0 || sinFecha.length > 0) && (
         <>
           <h3 className="hoja-sub-titulo">

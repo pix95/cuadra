@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import {
   resumenMes, saldoCuentaAl, primerMesCuenta, propuestaCierre, cobraEnMes, proximosCobros, calendarioCobros,
   aportacionHucha, recibosNoMensualesMes, partidasFrecuentes, ahorradoObjetivo, evolucionAhorro, alertas,
-  mesDeNomina, importeNomina, nominaDeHoy, adelantadoAlBanco, mesEnCurso, mesPropuesto, analisisPeriodo,
+  mesDeNomina, importeNomina, nominaDeHoy, adelantadoAlBanco, reciboHucha, partidaHuchaDuplicada, mesEnCurso, mesPropuesto, analisisPeriodo,
   OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL,
 } from "../src/lib/calculos.js";
 
@@ -297,4 +297,16 @@ test("la hucha calcula con el mes en curso: diciembre en cuanto entra su nómina
   } finally {
     globalThis.Date = real;
   }
+});
+
+test("apartar a la hucha como un recibo del mes: lo que falta y cuándo está hecho", () => {
+  const ibi = partida({ nombre: "Recibo anual", importe: 1200, frecuencia: "Anual", recibo: true });
+  const db = base({ partidas: [ibi, partida({ nombre: "Recibos no mensuales (a mano)", importe: 100, recibo: true })] });
+  const r = reciboHucha(db, "2030-03");
+  assert.deepEqual([r.sugerida, r.apartado, r.falta, r.hecho], [100, 0, 100, false]);
+  db.movimientos.push(mov({ tipo: "ahorro", objetivoId: OBJETIVO_FIJO.id, fecha: "2030-03-05", importe: 60 }));
+  assert.equal(reciboHucha(db, "2030-03").falta, 40);
+  db.movimientos.push(mov({ tipo: "ahorro", objetivoId: OBJETIVO_FIJO.id, fecha: "2030-03-20", importe: 40 }));
+  assert.equal(reciboHucha(db, "2030-03").hecho, true);
+  assert.equal(partidaHuchaDuplicada(db)?.nombre, "Recibos no mensuales (a mano)");
 });

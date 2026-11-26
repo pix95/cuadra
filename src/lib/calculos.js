@@ -550,6 +550,17 @@ export function evolucionAhorro(db, hasta, n = 12) {
   return out;
 }
 
+// La hucha como un recibo más del mes: apartar lo que toca. Se da por hecho
+// cuando lo apartado ese mes llega a lo que toca.
+export function reciboHucha(db, mes) {
+  const h = aportacionHucha(db, mes);
+  if (h.sugerida <= 0 && h.apartadoMes <= 0) return null;
+  const falta = r2(Math.max(0, h.sugerida - h.apartadoMes));
+  return { sugerida: h.sugerida, apartado: h.apartadoMes, falta, hecho: falta < 0.01, saldo: h.saldo };
+}
+// Una partida que hace de «apartar a la hucha» a mano (cuenta doble con la hucha)
+export const partidaHuchaDuplicada = (db) => db.partidas.find((p) => p.activa && esMensual(p) && /no mensual|hucha/i.test(p.nombre)) || null;
+
 // "Recibos no mensuales": saldo y cuánto apartar (ver aportacionHucha)
 export function huchaPeriodicos(db, mes) {
   const h = aportacionHucha(db, mes);
