@@ -191,3 +191,24 @@ test("accesos rápidos: sin recibos", () => {
   const db = base({ partidas: [luz, comida], movimientos: [mov({ partidaId: luz.id, fecha: "2030-01-05", importe: 50 })] });
   assert.deepEqual(partidasFrecuentes(db, 8, "2030-01-10").map((p) => p.nombre), ["Comida"]);
 });
+
+test("próximo cobro: se salta los de este mes ya pagados", () => {
+  const agua = partida({ nombre: "Agua", frecuencia: "Bimestral", importe: 30, cobroAncla: "2030-01" });
+  const ibi = partida({ nombre: "IBI", frecuencia: "Anual", importe: 400, cobroAncla: "2030-03" });
+  const db = base({ partidas: [agua, ibi], movimientos: [mov({ partidaId: agua.id, fecha: "2030-01-04", importe: 30 })] });
+  const h = aportacionHucha(db, "2030-01");
+  assert.equal(h.proximo.partida.nombre, "Agua");
+  assert.equal(h.proximo.mes, "2030-03", "el agua de enero ya está pagada: el siguiente es en marzo");
+});
+
+test("sugerida y estado tienen en cuenta los ajustes y retiradas a mano del mes", () => {
+  const p = partida({ frecuencia: "Anual", importe: 600, cobroAncla: "2030-06" });
+  const movs = [
+    mov({ tipo: "ahorro", objetivoId: OBJETIVO_FIJO.id, fecha: "2029-12-01", importe: 300 }),
+    mov({ tipo: "ajuste", objetivoId: OBJETIVO_FIJO.id, fecha: "2030-01-10", importe: -100 }), // cuadrar con el banco
+  ];
+  const h = aportacionHucha(base({ partidas: [p], movimientos: movs }), "2030-01");
+  assert.equal(h.saldo, 200);
+  assert.equal(h.estado, -100);
+  assert.equal(h.sugerida, 66.67); // (600 − 200) / 6
+});

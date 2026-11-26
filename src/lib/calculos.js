@@ -411,8 +411,14 @@ export function calendarioCobros(db, desde, n = 12) {
 //    que pase de ahí, sí.
 //  - proximo: el próximo cobro y si la hucha llegará (aportando el prorrateo).
 export function aportacionHucha(db, mes = hoyISO().slice(0, 7)) {
-  const saldoInicio = ahorradoObjetivo(db, OBJETIVO_FIJO.id, `${mes}-01`);
-  const aportes = db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id && m.fecha.startsWith(mes) && m.importe > 0 && !m.enlace);
+  // Saldo "de partida" del mes: lo de antes + los ajustes y las retiradas a mano de
+  // este mes (cambian lo que hay). No incluye lo apartado este mes ni las
+  // retiradas por pagar recibos (esos recibos ya están en los cobros del mes).
+  const delMes = db.movimientos.filter((m) => m.fecha.startsWith(mes) && ((m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id) || (esAjuste(m) && cuentaDeAjuste(m) === OBJETIVO_FIJO.id)));
+  const saldoInicio = r2(
+    ahorradoObjetivo(db, OBJETIVO_FIJO.id, `${mes}-01`) + sum(delMes.filter((m) => esAjuste(m) || (m.importe < 0 && !m.enlace)), (m) => m.importe)
+  );
+  const aportes = delMes.filter((m) => m.tipo === "ahorro" && m.importe > 0 && !m.enlace);
   const apartadoMes = r2(sum(aportes, (m) => m.importe));
   const saldo = ahorradoObjetivo(db, OBJETIVO_FIJO.id);
 
@@ -431,11 +437,14 @@ export function aportacionHucha(db, mes = hoyISO().slice(0, 7)) {
   const necesario = Math.max(0, ...acumulado.map((c, k) => c - prorrateoConFecha * (k + 1)));
   const estado = r2(saldoInicio - necesario + Math.max(0, apartadoMes - prorrateoTotal));
 
+  // El próximo cobro que aún no se ha pagado (los de este mes ya cargados se saltan)
+  const pagadoEsteMes = gastosPorPartida(movsDeMes(db, mes), db.partidas);
+  const x = cobros.find((c) => c.k > 0 || !(pagadoEsteMes.get(c.partida.id) > 0));
   let proximo = null;
-  if (cobros.length) {
-    const x = cobros[0];
-    // Lo que habrá ese mes: lo de este mes (o el prorrateo si aún no has apartado) + el prorrateo de los siguientes
-    const tendra = Math.max(saldo, saldoInicio + prorrateoConFecha) + prorrateoConFecha * x.k;
+  if (x) {
+    // Lo que habrá ese mes: el saldo de principio de mes + lo de este mes (lo
+    // apartado, o el prorrateo si aún no) + el prorrateo de los meses siguientes
+    const tendra = saldoInicio + Math.max(apartadoMes, prorrateoConFecha) + prorrateoConFecha * x.k;
     proximo = { partida: x.partida, mes: x.mes, importe: x.importe, meses: x.k, cubierto: tendra + 0.005 >= acumulado[x.k] };
   }
   return { saldo, saldoInicio, apartadoMes, sugerida, estado, proximo, cobros, prorrateo: prorrateoTotal, sinFecha };

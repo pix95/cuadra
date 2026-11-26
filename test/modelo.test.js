@@ -81,3 +81,13 @@ test("partida: guarda el mes del próximo cobro solo si no es mensual", () => {
   assert.equal(op.crearPartida(d, { nombre: "Gimnasio", importe: 30, frecuencia: "Mensual", cobroAncla: "2030-09" }).r.cobroAncla, null);
   assert.throws(() => op.crearPartida(d, { nombre: "Mal", importe: 1, frecuencia: "Anual", cobroAncla: "sept" }), /próximo cobro/);
 });
+
+test("restaurar acepta null en los argumentos (así llegan desde el servidor)", () => {
+  const { d, ibi } = preparar(500);
+  const { r } = op.guardarGasto(d, { tipo: "gasto", partidaId: ibi.id, fecha: "2030-06-03", importe: 400 }, { desdeHucha: true });
+  const { r: b } = op.borrarMovimiento(d, r.id);
+  const copia = JSON.parse(JSON.stringify([b.borrados, undefined]));
+  op.restaurarMovimientos(d, ...copia);
+  assert.equal(hucha(d), 100);
+  assert.equal(op.guardarGasto(d, { tipo: "gasto", partidaId: ibi.id, fecha: "2030-06-05", importe: 50 }, null).r.enlace, null);
+});

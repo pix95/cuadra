@@ -304,7 +304,10 @@ export const op = {
   // Vuelve a dejar unos movimientos como estaban (para «Deshacer»): los que
   // existen se sobrescriben, los que no se crean con el mismo id, y los de
   // "quitar" se borran.
-  restaurarMovimientos(d, lista = [], quitarIds = []) {
+  restaurarMovimientos(d, lista, quitarIds) {
+    // Pueden llegar como null desde el servidor (JSON no tiene undefined)
+    lista = Array.isArray(lista) ? lista : [];
+    quitarIds = Array.isArray(quitarIds) ? quitarIds : [];
     const cambios = [];
     for (const id of quitarIds) {
       if (d.movimientos.some((m) => m.id === id)) {
@@ -325,7 +328,8 @@ export const op = {
   // Guarda un gasto (nuevo o corregido). Si es de una partida no mensual y se
   // paga desde la hucha, crea o actualiza a la vez la retirada de «Recibos no
   // mensuales» por lo que la hucha pueda cubrir, enlazada con el gasto.
-  guardarGasto(d, b = {}, { desdeHucha = false } = {}) {
+  guardarGasto(d, b = {}, opciones) {
+    const desdeHucha = Boolean(opciones?.desdeHucha);
     const existente = b.id && d.movimientos.find((m) => m.id === b.id);
     const gasto = existente ? { ...existente, ...validarMovimiento(b, d, existente) } : { ...validarMovimiento(b, d), id: idNuevo(b.id, d.movimientos), creado: ahora() };
     if (gasto.tipo !== "gasto") falla("Solo los gastos se pueden pagar desde la hucha.");
