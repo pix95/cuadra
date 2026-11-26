@@ -19,7 +19,7 @@ const aFila = {
     id: m.id, tipo: m.tipo, fecha: m.fecha, importe: m.importe, partida_id: m.partidaId, objetivo_id: m.objetivoId,
     concepto: m.concepto, creado: m.creado, enlace: m.enlace ?? null,
   }),
-  meses: (x) => ({ mes: x.mes, sueldo: x.sueldo }),
+  meses: (x) => ({ mes: x.mes, sueldo: x.sueldo, ingresada: x.ingresada ?? null }),
   objetivos: (o) => ({ id: o.id, nombre: o.nombre, meta: o.meta, fecha: o.fecha, icono: o.icono, creado: o.creado }),
   simulaciones: (s) => ({
     id: s.id,
@@ -28,7 +28,7 @@ const aFila = {
     creado: s.creado,
     actualizado: s.actualizado,
   }),
-  ajustes: (a) => ({ nombre: a.nombre, sueldo: a.sueldoSugerido }),
+  ajustes: (a) => ({ nombre: a.nombre, sueldo: a.sueldoSugerido, nomina: a.nomina ?? null }),
 };
 const num = (v) => (v == null ? null : Number(v));
 const deFila = {
@@ -151,7 +151,7 @@ export function motorSupabase({ url, clave, cliente = null }) {
     if (o.tabla === "ajustes") estado.ajustes = { ...o.fila };
     else if (o.tabla === "meses") {
       if (o.tipo === "delete") delete estado.meses[o.id];
-      else estado.meses[o.id] = { sueldo: o.fila.sueldo };
+      else estado.meses[o.id] = { sueldo: o.fila.sueldo, ingresada: o.fila.ingresada ?? null };
     } else if (o.tipo === "delete") estado[o.tabla] = estado[o.tabla].filter((x) => x.id !== o.id);
     else {
       const lista = estado[o.tabla];
@@ -217,11 +217,11 @@ export function motorSupabase({ url, clave, cliente = null }) {
     ]);
     if (aj.error) throw aj.error;
     return migrar({
-      ajustes: { nombre: aj.data?.nombre || "", sueldoSugerido: num(aj.data?.sueldo) },
+      ajustes: { nombre: aj.data?.nombre || "", sueldoSugerido: num(aj.data?.sueldo), nomina: aj.data?.nomina ?? null },
       partidas: partidas.map(deFila.partidas),
       objetivos: objetivos.map(deFila.objetivos),
       movimientos: movimientos.map(deFila.movimientos),
-      meses: Object.fromEntries(meses.map((f) => [f.mes, { sueldo: num(f.sueldo) }])),
+      meses: Object.fromEntries(meses.map((f) => [f.mes, { sueldo: num(f.sueldo), ingresada: f.ingresada ? String(f.ingresada).slice(0, 10) : null }])),
       simulaciones: simulaciones.map(deFila.simulaciones),
     });
   }
@@ -410,7 +410,7 @@ export function motorSupabase({ url, clave, cliente = null }) {
     guardarSimulacion: guardar("simulaciones", "Simulacion"),
     borrarSimulacion: borrar("Simulacion"),
     aplicarSimulacion: (id) => ejecutar(op.aplicarSimulacion, id),
-    ponerSueldo: (mes, sueldo) => ejecutar(op.ponerSueldo, mes, sueldo),
+    ponerSueldo: (mes, sueldo, opciones) => ejecutar(op.ponerSueldo, mes, sueldo, opciones),
     guardarAjustes: (c) => ejecutar(op.guardarAjustes, c),
     importar: (csv) => ejecutar(importarCSV, csv),
   };

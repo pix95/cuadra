@@ -110,9 +110,25 @@ export function normalizarPartida(p, i = 0) {
   };
 }
 
+// Configuración de la nómina: importe habitual, día a partir del cual cuenta
+// para el mes siguiente y pagas extra (en qué nóminas van y cuánto suman).
+export const DIA_CORTE_NOMINA = 20;
+export function normalizarNomina(n) {
+  if (!n || typeof n !== "object") return null;
+  const importe = Number(n.importe);
+  const dia = Math.round(Number(n.diaCorte));
+  const extra = n.pagasExtra && typeof n.pagasExtra === "object" ? n.pagasExtra : {};
+  const meses = [...new Set((Array.isArray(extra.meses) ? extra.meses : []).map(Number).filter((m) => Number.isInteger(m) && m >= 1 && m <= 12))].sort((a, b) => a - b);
+  return {
+    importe: n.importe == null || n.importe === "" || !Number.isFinite(importe) ? null : r2(Math.max(0, importe)),
+    diaCorte: Number.isFinite(dia) && dia >= 1 && dia <= 31 ? dia : DIA_CORTE_NOMINA,
+    pagasExtra: { meses, importe: r2(Math.max(0, Number(extra.importe) || 0)) },
+  };
+}
+
 export const estadoVacio = () => ({
   version: 2,
-  ajustes: { nombre: "", sueldoSugerido: null },
+  ajustes: { nombre: "", sueldoSugerido: null, nomina: null },
   partidas: [],
   meses: {},
   movimientos: [],
@@ -131,6 +147,7 @@ export function semilla(inicial) {
 export function migrar(d) {
   d.version = 2;
   d.ajustes = { nombre: "", sueldoSugerido: null, ...(d.ajustes || {}) };
+  d.ajustes.nomina = normalizarNomina(d.ajustes.nomina);
   d.partidas = (d.partidas || []).map((p, i) => normalizarPartida(p, i));
   d.meses = d.meses && typeof d.meses === "object" ? d.meses : {};
   d.movimientos = Array.isArray(d.movimientos) ? d.movimientos : [];
@@ -259,11 +276,23 @@ export const op = {
     const nuevo = { ...d.ajustes };
     if ("nombre" in b) nuevo.nombre = texto(b.nombre, "El nombre", { max: 40 });
     if ("sueldoSugerido" in b) nuevo.sueldoSugerido = b.sueldoSugerido == null ? null : numero(b.sueldoSugerido, "El sueldo", { min: 0 });
+    if ("nomina" in b) {
+      const n = b.nomina;
+      if (n != null) {
+        if (n.importe != null && n.importe !== "") numero(n.importe, "El importe de la nómina", { min: 0, max: 1e7 });
+        const dia = Number(n.diaCorte);
+        if (n.diaCorte != null && !(Number.isInteger(dia) && dia >= 1 && dia <= 31)) falla("El día de corte tiene que estar entre 1 y 31.");
+        if (n.pagasExtra?.importe != null && n.pagasExtra.importe !== "") numero(n.pagasExtra.importe, "El importe de la paga extra", { min: 0, max: 1e7 });
+      }
+      nuevo.nomina = normalizarNomina(n);
+    }
     d.ajustes = nuevo;
     return hecho(nuevo, subir("ajustes", nuevo));
   },
 
-  ponerSueldo(d, mes, valor) {
+  // opciones.ingresada: fecha en que entró la nómina en la cuenta ("AAAA-MM-DD"),
+  // null para quitarla; si no se pasa, se conserva la que hubiera.
+  ponerSueldo(d, mes, valor, opciones) {
     if (!esMes(mes)) falla("Mes no válido.");
     const sueldo = valor == null || valor === "" ? null : numero(valor, "El sueldo", { min: 0, max: 1e7 });
     const cambios = [];
@@ -271,9 +300,14 @@ export const op = {
       delete d.meses[mes];
       cambios.push(quitar("meses", mes));
     } else {
-      d.meses[mes] = { ...(d.meses[mes] || {}), sueldo };
+      let ingresada = d.meses[mes]?.ingresada ?? null;
+      if (opciones && "ingresada" in opciones) {
+        if (opciones.ingresada != null && !esFecha(opciones.ingresada)) falla("La fecha de la nómina no es válida.");
+        ingresada = opciones.ingresada ?? null;
+      }
+      d.meses[mes] = { sueldo, ingresada };
       d.ajustes = { ...d.ajustes, sueldoSugerido: sueldo };
-      cambios.push(subir("meses", { mes, sueldo }), subir("ajustes", d.ajustes));
+      cambios.push(subir("meses", { mes, sueldo, ingresada }), subir("ajustes", d.ajustes));
     }
     return hecho({ meses: d.meses, ajustes: d.ajustes }, ...cambios);
   },

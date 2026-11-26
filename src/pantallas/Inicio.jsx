@@ -1,7 +1,7 @@
-import { ArrowUpRight, ArrowDownLeft, Banknote, Bell, Search, ChevronDown, TrendingUp, TrendingDown, ChevronRight, Pencil, Scale } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Banknote, Bell, Search, ChevronDown, TrendingUp, TrendingDown, ChevronRight, Scale, Settings, CircleCheck } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { resumenMes, recibosMes, recibosNoMensualesMes, alertas, CUENTA_PRINCIPAL } from "../lib/calculos.js";
-import { eur, nombreMes, mesCorto, saludo, pct, moverMes } from "../lib/formato.js";
+import { resumenMes, recibosMes, recibosNoMensualesMes, alertas, nominaDeHoy, CUENTA_PRINCIPAL } from "../lib/calculos.js";
+import { eur, nombreMes, mesCorto, saludo, pct, moverMes, fechaCorta } from "../lib/formato.js";
 import { Cifra, Sparkline, Vacio } from "../components/comunes.jsx";
 import { Ficha } from "../lib/iconos.jsx";
 import { ICONO } from "../config.js";
@@ -50,7 +50,7 @@ export default function Inicio() {
           <div className="acciones">
             <Accion principal icono={<ArrowUpRight size={24} />} texto="Gasto" onClick={() => ui.abrir("apuntar", { tipo: "gasto" })} />
             <Accion icono={<ArrowDownLeft size={24} />} texto="Ingreso" onClick={() => ui.abrir("apuntar", { tipo: "ingreso" })} />
-            <Accion icono={<Banknote size={24} />} texto="Sueldo" onClick={() => ui.abrir("sueldo", { mes: ui.mes })} />
+            <Accion icono={<Banknote size={24} />} texto="Nómina" onClick={() => ui.abrir("nomina")} />
           </div>
 
           <TarjetaSaldo r={r} mesTxt={mesTxt} />
@@ -95,6 +95,7 @@ function Accion({ icono, texto, onClick, principal }) {
 
 function TarjetaSaldo({ r, mesTxt }) {
   const ui = useUI();
+  const { db } = useDatos();
   // La cifra grande es el saldo de la cuenta principal (con lo que arrastra de
   // meses anteriores); el desglose dice cuánto es de este mes.
   const etiqueta = r.fase === "pasado" ? `En tu cuenta al cerrar ${mesTxt}` : r.fase === "futuro" ? `En tu cuenta en ${mesTxt}` : "En tu cuenta";
@@ -127,8 +128,8 @@ function TarjetaSaldo({ r, mesTxt }) {
       </p>
 
       {r.sueldo == null && r.fase !== "pasado" ? (
-        <button type="button" className="saldo-sin-sueldo" onClick={() => ui.abrir("sueldo", { mes: ui.mes, inicioDeMes: r.fase === "actual" })}>
-          <Banknote size={16} /> Elige con qué sueldo empiezas {mesTxt}
+        <button type="button" className="saldo-sin-sueldo" onClick={() => ui.abrir("nomina", { mes: ui.mes })}>
+          <Banknote size={16} /> Aún no has ingresado la nómina de {mesTxt}
         </button>
       ) : (
         <div className="saldo-pill-fila">
@@ -141,15 +142,38 @@ function TarjetaSaldo({ r, mesTxt }) {
       )}
 
       <div className="saldo-abajo">
-        <button type="button" className="saldo-sueldo" onClick={() => ui.abrir("sueldo", { mes: ui.mes })}>
-          <small>
-            Sueldo{r.ingresos ? ` + ${eur(r.ingresos, { corto: true })} extra` : ""} <Pencil size={11} />
+        <div className="nomina-bloque">
+          <small className="nomina-mes">
+            {r.sueldo == null ? `Sin nómina en ${mesTxt}` : `Nómina de ${mesTxt}: ${eur(r.sueldo, { corto: true })}`}
+            {r.ingresos ? ` + ${eur(r.ingresos, { corto: true })} extra` : ""}
           </small>
-          <b>{r.sueldo == null ? "Sin definir" : eur(r.sueldo)}</b>
-        </button>
+          <BotonNomina db={db} />
+        </div>
         <Sparkline valores={r.serie} />
       </div>
     </section>
+  );
+}
+
+// «Ingresar nómina» con el engranaje de la configuración. Siempre va a la
+// nómina que toca hoy (desde el día de corte, la del mes siguiente).
+function BotonNomina({ db }) {
+  const ui = useUI();
+  const n = nominaDeHoy(db);
+  const hecha = Boolean(n.ingresada);
+  return (
+    <div className={`boton-nomina ${hecha ? "hecha" : ""}`}>
+      <button type="button" className="boton-nomina-principal" onClick={() => ui.abrir("nomina", hecha ? { mes: n.mes } : {})}>
+        {hecha ? <CircleCheck size={19} /> : <Banknote size={19} />}
+        <span>
+          <b>{hecha ? "Nómina ingresada" : "Ingresar nómina"}</b>
+          <small>{hecha ? `${nombreMes(n.mes)} · ${fechaCorta(n.ingresada)}` : `de ${nombreMes(n.mes)}`}</small>
+        </span>
+      </button>
+      <button type="button" className="boton-nomina-ajustes" onClick={() => ui.abrir("nominaAjustes")} aria-label="Configurar la nómina" title="Configurar la nómina">
+        <Settings size={18} />
+      </button>
+    </div>
   );
 }
 

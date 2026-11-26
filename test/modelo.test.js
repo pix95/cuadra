@@ -91,3 +91,21 @@ test("restaurar acepta null en los argumentos (así llegan desde el servidor)", 
   assert.equal(hucha(d), 100);
   assert.equal(op.guardarGasto(d, { tipo: "gasto", partidaId: ibi.id, fecha: "2030-06-05", importe: 50 }, null).r.enlace, null);
 });
+
+test("nómina: guarda el día en que entró y se conserva al cambiar el importe", () => {
+  const { d } = preparar(0);
+  op.ponerSueldo(d, "2030-12", 1800, { ingresada: "2030-11-29" });
+  assert.deepEqual(d.meses["2030-12"], { sueldo: 1800, ingresada: "2030-11-29" });
+  op.ponerSueldo(d, "2030-12", 1850);
+  assert.equal(d.meses["2030-12"].ingresada, "2030-11-29");
+  op.ponerSueldo(d, "2030-12", 1850, { ingresada: null });
+  assert.equal(d.meses["2030-12"].ingresada, null);
+  assert.throws(() => op.ponerSueldo(d, "2030-12", 1850, { ingresada: "29/11" }), /fecha/);
+});
+
+test("nómina: la configuración se valida y se normaliza", () => {
+  const { d } = preparar(0);
+  op.guardarAjustes(d, { nomina: { importe: "1500", diaCorte: 25, pagasExtra: { meses: [12, 6, 6, 13], importe: 900 } } });
+  assert.deepEqual(d.ajustes.nomina, { importe: 1500, diaCorte: 25, pagasExtra: { meses: [6, 12], importe: 900 } });
+  assert.throws(() => op.guardarAjustes(d, { nomina: { diaCorte: 40 } }), /día de corte/);
+});

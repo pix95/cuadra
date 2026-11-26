@@ -11,12 +11,15 @@ import Simulador from "./pantallas/Simulador.jsx";
 import Ahorros, { HojaHucha } from "./pantallas/Ahorros.jsx";
 import Apuntar from "./pantallas/Apuntar.jsx";
 import Acceso from "./pantallas/Acceso.jsx";
+import { HojaNomina, HojaConfigNomina } from "./pantallas/Nomina.jsx";
 import { HojaCuadrar, HojaAjuste, HojaCierre, HojaSueldo, HojaPartida, HojaObjetivo, HojaAlertas, HojaRecibos, HojaAjustes, HojaElegirPartida, HojaMeses, HojaConfirmar } from "./pantallas/Hojas.jsx";
 
 const PANTALLAS = { inicio: Inicio, movimientos: Movimientos, analisis: Analisis, presupuesto: Presupuesto, ahorros: Ahorros, simulador: Simulador };
 const CAPAS = {
   apuntar: Apuntar,
   sueldo: HojaSueldo,
+  nomina: HojaNomina,
+  nominaAjustes: HojaConfigNomina,
   partida: HojaPartida,
   objetivo: HojaObjetivo,
   alertas: HojaAlertas,
@@ -85,7 +88,7 @@ function Marco() {
   const ui = useUI();
   const Pantalla = PANTALLAS[ui.vista] || Inicio;
 
-  // Al empezar un mes nuevo, pregunta con qué sueldo empiezas
+  // Al empezar un mes sin nómina, propone ingresarla
   const preguntado = useRef(false);
   useEffect(() => {
     if (preguntado.current) return;
@@ -97,7 +100,7 @@ function Marco() {
     } catch {
       /* sin almacenamiento */
     }
-    if (db.meses[mes]?.sueldo == null && !pospuesto) ui.abrir("sueldo", { mes, inicioDeMes: true });
+    if (db.meses[mes]?.sueldo == null && !pospuesto) ui.abrir("nomina", { mes, inicioDeMes: true });
     // Solo al abrir la app
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

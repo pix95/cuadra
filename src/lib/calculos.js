@@ -1,7 +1,7 @@
 // Cálculos del presupuesto. Todo es puro: recibe los datos y devuelve cifras.
 import { r2, sum, diasEnMes, fechaDe, iso, sumarDias, moverMes, hoyISO } from "./formato.js";
-import { OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL, objetivosConFijo, cuentas, cuentaDeAjuste } from "../../shared/modelo.js";
-export { OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL, objetivosConFijo, cuentas, cuentaDeAjuste };
+import { OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL, objetivosConFijo, cuentas, cuentaDeAjuste, DIA_CORTE_NOMINA } from "../../shared/modelo.js";
+export { OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL, objetivosConFijo, cuentas, cuentaDeAjuste, DIA_CORTE_NOMINA };
 
 export const FRECUENCIAS = ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual"];
 export const VECES = { Mensual: 12, Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1 };
@@ -173,11 +173,61 @@ export function partidasFrecuentes(db, n = 8, hoy = hoyISO()) {
   return ids.slice(0, n).map((id) => elegibles.find((p) => p.id === id));
 }
 
+// ---------- Nómina ----------
+// La configuración con sus valores por defecto. Sin importe configurado se
+// propone el último sueldo usado.
+export function configNomina(db) {
+  const n = db.ajustes?.nomina;
+  return {
+    importe: n?.importe ?? db.ajustes?.sueldoSugerido ?? null,
+    diaCorte: n?.diaCorte ?? DIA_CORTE_NOMINA,
+    pagasExtra: n?.pagasExtra ?? { meses: [], importe: 0 },
+  };
+}
+
+// A qué mes corresponde una nómina que entra en la cuenta un día concreto: a
+// partir del día de corte es la del mes siguiente (la del 29 de noviembre es la
+// de diciembre).
+export function mesDeNomina(fecha, diaCorte = DIA_CORTE_NOMINA) {
+  const mes = fecha.slice(0, 7);
+  return Number(fecha.slice(8, 10)) >= diaCorte ? moverMes(mes, 1) : mes;
+}
+
+// Lo que se propone ingresar como nómina de un mes (con la paga extra si toca)
+export function importeNomina(db, mes) {
+  const c = configNomina(db);
+  const extra = c.pagasExtra.importe > 0 && c.pagasExtra.meses.includes(Number(mes.slice(5, 7))) ? c.pagasExtra.importe : 0;
+  return { base: c.importe, extra, total: c.importe == null && !extra ? null : r2((c.importe ?? 0) + extra) };
+}
+
+// La nómina que toca ingresar hoy: su mes y si ya está ingresada
+export function nominaDeHoy(db, hoy = hoyISO()) {
+  const mes = mesDeNomina(hoy, configNomina(db).diaCorte);
+  const m = db.meses[mes];
+  return { mes, sueldo: m?.sueldo ?? null, ingresada: m?.ingresada ?? null };
+}
+
+// Nóminas de meses que aún no han empezado pero que ya están en el banco (la de
+// diciembre ingresada el 29 de noviembre). Cuadra no las cuenta hasta su mes,
+// así que hay que sumarlas al comparar con el saldo del banco.
+export function nominasAdelantadas(db, hoy = hoyISO()) {
+  const actual = hoy.slice(0, 7);
+  const lista = Object.entries(db.meses)
+    .filter(([mes, v]) => mes > actual && v?.ingresada && v.ingresada <= hoy && v.sueldo != null)
+    .map(([mes, v]) => ({ mes, sueldo: v.sueldo, ingresada: v.ingresada }))
+    .sort((a, b) => a.mes.localeCompare(b.mes));
+  return { lista, total: r2(sum(lista, (x) => x.sueldo)) };
+}
+
 // Avisos para la campana
 export function alertas(db, mes, hoy = hoyISO()) {
   const r = resumenMes(db, mes, hoy);
   const out = [];
-  if (r.sueldo == null && r.fase !== "pasado") out.push({ nivel: "info", tipo: "sueldo", texto: "Aún no has elegido el sueldo de este mes." });
+  if (r.sueldo == null && r.fase !== "pasado") out.push({ nivel: "info", tipo: "nomina", mes, texto: "Aún no has ingresado la nómina de este mes." });
+  // Desde el día de corte, recordar la nómina del mes siguiente
+  const nh = nominaDeHoy(db, hoy);
+  if (r.fase === "actual" && nh.mes !== mes && nh.sueldo == null)
+    out.push({ nivel: "info", tipo: "nomina", mes: nh.mes, texto: "Cuando te llegue la nómina, pulsa «Ingresar nómina»: contará para el mes que viene." });
   for (const p of ordenar(db.partidas.filter((p) => p.activa && esMensual(p)))) {
     const g = r.gp.get(p.id) || 0;
     const e = estadoDe(g, p.importe);

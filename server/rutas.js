@@ -15,7 +15,10 @@ rutas.get("/copia.json", (req, res) => {
 });
 
 rutas.put("/ajustes", (req, res) => res.json(cambiar((d) => op.guardarAjustes(d, cuerpo(req)))));
-rutas.put("/meses/:mes", (req, res) => res.json(cambiar((d) => op.ponerSueldo(d, req.params.mes, cuerpo(req).sueldo))));
+rutas.put("/meses/:mes", (req, res) => {
+  const b = cuerpo(req);
+  res.json(cambiar((d) => op.ponerSueldo(d, req.params.mes, b.sueldo, "ingresada" in b ? { ingresada: b.ingresada } : undefined)));
+});
 
 // Crear, cambiar y borrar: el mismo patrón para cada colección
 const colecciones = [

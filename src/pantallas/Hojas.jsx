@@ -1,5 +1,5 @@
 // Ventanas que suben desde abajo: sueldo, partidas, objetivos, avisos, recibos, ajustes…
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { Check, X, Scale, Search, Download, Upload, FileJson, TriangleAlert, Info, CircleAlert, ChevronRight, Archive, ArchiveRestore, Trash2, Plus, CalendarClock, RefreshCw, LogOut, Smartphone } from "lucide-react";
 import { exportarCSV } from "../../shared/csv.js";
 import { useDatos, useUI } from "../store.jsx";
@@ -8,7 +8,7 @@ import { Ficha, Icono, ICONOS, ICONOS_OBJETIVO, colorCategoria } from "../lib/ic
 import {
   presupuestoMensual, recibosMes, alertas, ordenar, ordenCategorias, esMensual, gastosPorPartida, movsDeMes, ahorradoObjetivo,
   FRECUENCIAS, CADA, resumenMes, estadoDe, porcentaje, acumuladoAño, anual, objetivosConFijo, OBJETIVO_FIJO, AHORRO_PRINCIPAL,
-  CUENTA_PRINCIPAL, cuentas, cuentaDeAjuste, recibosNoMensualesMes, huchaPeriodicos, proximosCobros,
+  CUENTA_PRINCIPAL, cuentas, cuentaDeAjuste, recibosNoMensualesMes, huchaPeriodicos, proximosCobros, nominasAdelantadas,
 } from "../lib/calculos.js";
 import { eur, parseImporte, aInput, nombreMes, mesActual, moverMes, hoyISO, diasEnMes, MESES_CORTOS, mayus, fechaCorta, mesCorto, r2 } from "../lib/formato.js";
 
@@ -412,7 +412,7 @@ export function HojaAlertas({ cerrar }) {
   const lista = alertas(db, ui.mes);
   function ir(a) {
     cerrar();
-    if (a.tipo === "sueldo") ui.abrir("sueldo", { mes: ui.mes });
+    if (a.tipo === "nomina") ui.abrir("nomina", { mes: a.mes });
     else if (a.tipo === "recibos") ui.abrir("recibos", { mes: ui.mes });
     else ui.irA("analisis");
   }
@@ -908,8 +908,12 @@ export function HojaCierre({ mes, importe, fecha, cerrar }) {
 // ---------- Cuadrar una cuenta con el banco ----------
 // Escribes el saldo que ves en el banco y se crea un ajuste por la diferencia.
 // La primera vez sirve como saldo inicial.
+// Lo que debería haber en el banco según Cuadra. En la cuenta principal se
+// suman las nóminas que ya han entrado pero cuentan para un mes que aún no ha
+// empezado (la de diciembre ingresada el 29 de noviembre).
 export function saldoDeCuenta(db, cuenta) {
-  return cuenta === CUENTA_PRINCIPAL.id ? resumenMes(db, mesActual()).saldoCuenta : ahorradoObjetivo(db, cuenta);
+  if (cuenta !== CUENTA_PRINCIPAL.id) return ahorradoObjetivo(db, cuenta);
+  return r2(resumenMes(db, mesActual()).saldoCuenta + nominasAdelantadas(db).total);
 }
 
 export function HojaCuadrar({ cuenta, cerrar }) {
@@ -917,6 +921,7 @@ export function HojaCuadrar({ cuenta, cerrar }) {
   const ui = useUI();
   const info = cuentas(db).find((c) => c.id === cuenta) || CUENTA_PRINCIPAL;
   const enCuadra = saldoDeCuenta(db, cuenta);
+  const adelantadas = cuenta === CUENTA_PRINCIPAL.id ? nominasAdelantadas(db) : { lista: [] };
   const primeraVez = !db.movimientos.some((m) => m.tipo === "ajuste" && m.objetivoId === cuenta);
   const [txt, setTxt] = useState("");
   const [error, setError] = useState("");
@@ -950,6 +955,12 @@ export function HojaCuadrar({ cuenta, cerrar }) {
       }
     >
       <dl className="cuadre">
+        {adelantadas.lista.map((n) => (
+          <Fragment key={n.mes}>
+            <dt>Nómina de {nombreMes(n.mes)} (ya en el banco)</dt>
+            <dd>{eur(n.sueldo, { signo: true })}</dd>
+          </Fragment>
+        ))}
         <dt>En Cuadra</dt>
         <dd>{eur(enCuadra)}</dd>
       </dl>

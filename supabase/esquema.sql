@@ -66,6 +66,8 @@ create table if not exists public.meses (
   primary key (user_id, mes)
 );
 alter table public.meses enable row level security;
+-- Día en que entró la nómina (la que llega a final de mes cuenta para el siguiente)
+alter table public.meses add column if not exists ingresada date;
 
 -- ---------- Escenarios del simulador ----------
 create table if not exists public.simulaciones (
@@ -87,6 +89,8 @@ create table if not exists public.ajustes (
 );
 alter table public.ajustes enable row level security;
 alter table public.ajustes add column if not exists nombre text not null default '';
+-- Configuración de la nómina: importe, día de corte y pagas extra
+alter table public.ajustes add column if not exists nomina jsonb;
 
 -- ---------- Seguridad: cada persona solo ve y cambia lo suyo ----------
 do $$

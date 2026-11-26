@@ -68,8 +68,8 @@ export function motorServidor() {
       const r = await api.post(`/simulaciones/${id}/aplicar`);
       poner({ ...estado, partidas: r.partidas });
     },
-    async ponerSueldo(mes, sueldo) {
-      const r = await api.put(`/meses/${mes}`, { sueldo });
+    async ponerSueldo(mes, sueldo, opciones) {
+      const r = await api.put(`/meses/${mes}`, { sueldo, ...(opciones && "ingresada" in opciones ? { ingresada: opciones.ingresada ?? null } : {}) });
       poner({ ...estado, meses: r.meses, ajustes: r.ajustes });
     },
     async guardarAjustes(cambios) {

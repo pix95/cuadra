@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   resumenMes, saldoCuentaAl, primerMesCuenta, propuestaCierre, cobraEnMes, proximosCobros, calendarioCobros,
   aportacionHucha, recibosNoMensualesMes, partidasFrecuentes, ahorradoObjetivo, evolucionAhorro, alertas,
+  mesDeNomina, importeNomina, nominaDeHoy, nominasAdelantadas,
   OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL,
 } from "../src/lib/calculos.js";
 
@@ -211,4 +212,30 @@ test("sugerida y estado tienen en cuenta los ajustes y retiradas a mano del mes"
   assert.equal(h.saldo, 200);
   assert.equal(h.estado, -100);
   assert.equal(h.sugerida, 66.67); // (600 − 200) / 6
+});
+
+test("nómina: a partir del día de corte cuenta para el mes siguiente", () => {
+  assert.equal(mesDeNomina("2030-11-29", 20), "2030-12");
+  assert.equal(mesDeNomina("2030-11-19", 20), "2030-11");
+  assert.equal(mesDeNomina("2030-12-02", 20), "2030-12", "si se retrasa a principios de mes, es la de ese mes");
+  assert.equal(mesDeNomina("2030-12-28", 20), "2031-01");
+});
+
+test("nómina: importe propuesto con la paga extra y la de hoy", () => {
+  const db = { ...base(), ajustes: { nombre: "", sueldoSugerido: 1400, nomina: { importe: 1500, diaCorte: 25, pagasExtra: { meses: [6, 12], importe: 700 } } } };
+  assert.deepEqual(importeNomina(db, "2030-12"), { base: 1500, extra: 700, total: 2200 });
+  assert.equal(importeNomina(db, "2030-11").total, 1500);
+  assert.equal(nominaDeHoy(db, "2030-11-24").mes, "2030-11");
+  db.meses["2030-12"] = { sueldo: 2200, ingresada: "2030-11-27" };
+  assert.deepEqual(nominaDeHoy(db, "2030-11-27"), { mes: "2030-12", sueldo: 2200, ingresada: "2030-11-27" });
+});
+
+test("nómina adelantada: no cuenta en el saldo del mes, pero sí al cuadrar con el banco", () => {
+  const db = base();
+  db.meses["2030-11"] = { sueldo: 1000, ingresada: "2030-10-30" };
+  db.meses["2030-12"] = { sueldo: 1200, ingresada: "2030-11-28" };
+  assert.equal(resumenMes(db, "2030-11", "2030-11-29").saldoCuenta, 1000);
+  assert.deepEqual(nominasAdelantadas(db, "2030-11-29"), { lista: [{ mes: "2030-12", sueldo: 1200, ingresada: "2030-11-28" }], total: 1200 });
+  assert.equal(nominasAdelantadas(db, "2030-11-27").total, 0, "aún no había llegado");
+  assert.equal(nominasAdelantadas(db, "2030-12-01").total, 0, "en diciembre ya cuenta en el saldo");
 });
