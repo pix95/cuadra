@@ -38,11 +38,18 @@ export function HojaNomina({ mes: mesFijo = null, inicioDeMes = false, cerrar })
     if (!Number.isFinite(v) || v < 0) return setError("Escribe la nómina como un número, por ejemplo 1500 o 1.500,50.");
     if (!fecha) return setError("Elige el día en que te llegó.");
     try {
+      const mesVista = ui.mes;
       await acc.ponerSueldo(mes, v, { ingresada: fecha });
       cerrar();
-      ui.avisar(`Nómina de ${nombreMes(mes)} ingresada: ${eur(v, { corto: true })}`, {
+      // Si con esta nómina empieza su mes (la de diciembre ya en el banco), se pasa a verlo
+      const empieza = fecha <= hoyISO() && mes > mesVista && mes <= mesDeNomina(hoyISO());
+      if (empieza) ui.setMes(mes);
+      ui.avisar(`Nómina de ${nombreMes(mes)} ingresada: ${eur(v, { corto: true })}${empieza ? ` · ya estás en ${nombreMes(mes)}` : ""}`, {
         texto: "Deshacer",
-        fn: () => acc.ponerSueldo(mes, previa?.sueldo ?? null, { ingresada: previa?.ingresada ?? null }),
+        fn: async () => {
+          await acc.ponerSueldo(mes, previa?.sueldo ?? null, { ingresada: previa?.ingresada ?? null });
+          if (empieza) ui.setMes(mesVista);
+        },
       });
     } catch (e) {
       setError(e.message);

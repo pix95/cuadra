@@ -1,6 +1,6 @@
 import { ArrowUpRight, ArrowDownLeft, Banknote, Bell, Search, ChevronDown, TrendingUp, TrendingDown, ChevronRight, Scale, Settings, CircleCheck, Car } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { resumenMes, recibosMes, recibosNoMensualesMes, alertas, nominaDeHoy, avisosCoche, reciboHucha, CUENTA_PRINCIPAL } from "../lib/calculos.js";
+import { resumenMes, recibosMes, recibosNoMensualesMes, alertas, nominaDeHoy, avisosCoche, reciboHucha, mesEnCurso, CUENTA_PRINCIPAL } from "../lib/calculos.js";
 import { eur, nombreMes, mesCorto, saludo, pct, moverMes, fechaCorta } from "../lib/formato.js";
 import { Cifra, Sparkline, Vacio } from "../components/comunes.jsx";
 import { Ficha } from "../lib/iconos.jsx";
@@ -100,7 +100,7 @@ function TarjetaSaldo({ r, mesTxt }) {
   const { db } = useDatos();
   // La cifra grande es el saldo de la cuenta principal (con lo que arrastra de
   // meses anteriores); el desglose dice cuánto es de este mes.
-  const etiqueta = r.fase === "pasado" ? `En tu cuenta al cerrar ${mesTxt}` : r.fase === "futuro" ? `En tu cuenta en ${mesTxt}` : "En tu cuenta";
+  const etiqueta = r.fase === "pasado" ? `Tu saldo al cerrar ${mesTxt}` : r.fase === "futuro" ? `Tu saldo previsto en ${mesTxt}` : "Tu saldo";
   const desglose = [
     `${r.fase === "pasado" ? "Ese mes" : "Este mes"} ${eur(r.disponible, { signo: true, corto: true })}`,
     r.arrastre ? `arrastras de ${nombreMes(moverMes(r.mes, -1))} ${eur(r.arrastre, { corto: true })}` : null,
@@ -122,9 +122,13 @@ function TarjetaSaldo({ r, mesTxt }) {
       <Cifra valor={r.saldoCuenta} className="saldo-cifra" />
       <p className="saldo-desglose">
         {desglose}
-        {r.fase !== "futuro" && (
+        {r.fase === "actual" ? (
           <button type="button" className="saldo-cuadrar" onClick={() => ui.abrir("cuadrar", { cuenta: CUENTA_PRINCIPAL.id })}>
             <Scale size={12} /> Cuadrar con el banco
+          </button>
+        ) : (
+          <button type="button" className="saldo-cuadrar" onClick={() => ui.setMes(mesEnCurso(db))}>
+            Ir a {nombreMes(mesEnCurso(db))}, el mes en curso
           </button>
         )}
       </p>
