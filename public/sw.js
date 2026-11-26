@@ -53,7 +53,12 @@ self.addEventListener("fetch", (e) => {
       const guardada = await cache.match(req, { ignoreSearch: true });
       if (guardada) return guardada;
       const res = await fetch(req);
-      if (res.ok) cache.put(req, res.clone());
+      // Solo se guarda una respuesta completa y del tipo que toca (no una
+      // página de error ni un archivo a medias mientras se publica)
+      const tipo = res.headers.get("content-type") || "";
+      const esperado = url.pathname.endsWith(".css") ? "css" : url.pathname.endsWith(".js") ? "javascript" : "";
+      const largo = Number(res.headers.get("content-length") || 1);
+      if (res.ok && res.type === "basic" && (!esperado || tipo.includes(esperado)) && largo > 0) cache.put(req, res.clone());
       return res;
     })
   );

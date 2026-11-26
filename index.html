@@ -27,7 +27,9 @@
           var sinEstilos = getComputedStyle(document.documentElement).getPropertyValue("--fondo").trim() === "";
           if (sinEstilos && !sessionStorage.getItem("cuadra:recarga-estilos")) {
             sessionStorage.setItem("cuadra:recarga-estilos", "1");
-            location.reload();
+            // Borra las copias guardadas (puede haber un archivo a medias) y recarga
+            var borrar = window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : Promise.resolve();
+            borrar.catch(function () {}).then(function () { location.reload(); });
           } else if (!sinEstilos) sessionStorage.removeItem("cuadra:recarga-estilos");
         } catch (e) {}
       });
