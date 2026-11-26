@@ -495,7 +495,7 @@ export function calendarioCobros(db, desde, n = 12) {
 //    Apartar este mes hasta el prorrateo no lo cambia (es lo que tocaba); lo
 //    que pase de ahí, sí.
 //  - proximo: el próximo cobro y si la hucha llegará (aportando el prorrateo).
-export function aportacionHucha(db, mes = hoyISO().slice(0, 7)) {
+export function aportacionHucha(db, mes = mesEnCurso(db)) {
   // Saldo "de partida" del mes: lo de antes + los ajustes y las retiradas a mano de
   // este mes (cambian lo que hay). No incluye lo apartado este mes ni las
   // retiradas por pagar recibos (esos recibos ya están en los cobros del mes).

@@ -27,7 +27,7 @@ function fechaPorDefecto(mes, db) {
 }
 const nombreCorto = (n) => n.replace(/\s*\(.*\)\s*$/, "");
 
-export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimiento = null, partidaId: pInicial = "", objetivoId: oInicial = "", importe: impInicial }) {
+export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimiento = null, partidaId: pInicial = "", objetivoId: oInicial = "", importe: impInicial, mes: mesInicial }) {
   const { db, acc } = useDatos();
   const ui = useUI();
   const editando = Boolean(movimiento);
@@ -37,10 +37,10 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
   const [negativo, setNegativo] = useState(movimiento ? movimiento.importe < 0 : false);
   const [partidaId, setPartidaId] = useState(movimiento?.partidaId || pInicial || "");
   const [objetivoId, setObjetivoId] = useState(movimiento?.objetivoId || oInicial || AHORRO_PRINCIPAL.id);
-  const [fecha, setFecha] = useState(movimiento?.fecha || fechaPorDefecto(ui.mes, db));
+  const [fecha, setFecha] = useState(movimiento?.fecha || fechaPorDefecto(mesInicial || ui.mes, db));
   // Mes al que cuenta: el de la fecha o el siguiente. Al apuntar se propone el
   // mes que estás mirando; si no encaja con la fecha, el automático.
-  const [mesElegido, setMesElegido] = useState(movimiento ? mesDe(movimiento) : ui.mes);
+  const [mesElegido, setMesElegido] = useState(movimiento ? mesDe(movimiento) : mesInicial || ui.mes);
   const [concepto, setConcepto] = useState(movimiento?.concepto || "");
   const [verNota, setVerNota] = useState(Boolean(movimiento?.concepto));
   const [borrar, setBorrar] = useState(false);

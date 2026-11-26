@@ -281,3 +281,20 @@ test("lo apartado a la hucha el 30 de noviembre para diciembre cuenta como aport
   assert.deepEqual([dic.saldoInicio, dic.apartadoMes], [50, 30]);
   assert.equal(aportacionHucha(db, "2030-11").apartadoMes, 0);
 });
+
+test("la hucha calcula con el mes en curso: diciembre en cuanto entra su nómina", () => {
+  const db = base();
+  db.meses["2030-12"] = { sueldo: 1200, ingresada: "2030-11-28" };
+  db.movimientos.push(mov({ tipo: "ahorro", objetivoId: OBJETIVO_FIJO.id, fecha: "2030-11-29", mes: "2030-12", importe: 40 }));
+  const real = Date;
+  globalThis.Date = class extends real {
+    constructor(...a) {
+      super(...(a.length ? a : ["2030-11-29T12:00:00"]));
+    }
+  };
+  try {
+    assert.equal(aportacionHucha(db).apartadoMes, 40, "sin mes, cuenta lo de diciembre");
+  } finally {
+    globalThis.Date = real;
+  }
+});

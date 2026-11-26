@@ -182,7 +182,8 @@ function EstadoHucha({ estado }) {
 function ObjetivoFijo() {
   const ui = useUI();
   const { db } = useDatos();
-  const h = huchaPeriodicos(db);
+  const mes = mesEnCurso(db);
+  const h = huchaPeriodicos(db, mes);
   const falta = r2(Math.max(0, h.sugerida - h.apartadoMes));
   return (
     <button type="button" className="tarjeta objetivo-fijo fondo-degradado" onClick={() => ui.abrir("hucha")}>
@@ -193,7 +194,7 @@ function ObjetivoFijo() {
         <span className="objetivo-txt">
           <b>Recibos no mensuales</b>
           <small>
-            {falta > 0 ? `Este mes aparta ${eur(falta, { corto: true })}` : h.sugerida > 0 ? "Este mes ya está apartado" : "Fijo · para IBI, comunidad, agua…"}
+            {falta > 0 ? `En ${nombreMes(mes)} aparta ${eur(falta, { corto: true })}` : h.sugerida > 0 ? `${mayus(nombreMes(mes))} ya está apartado` : "Fijo · para IBI, comunidad, agua…"}
           </small>
         </span>
         <span className="objetivo-fijo-saldo">
@@ -218,7 +219,9 @@ function ObjetivoFijo() {
 export function HojaHucha({ cerrar }) {
   const { db } = useDatos();
   const ui = useUI();
-  const h = huchaPeriodicos(db);
+  // La hucha va con el mes en curso (diciembre en cuanto entra su nómina)
+  const mes = mesEnCurso(db);
+  const h = huchaPeriodicos(db, mes);
   const falta = r2(Math.max(0, h.sugerida - h.apartadoMes));
   return (
     <Hoja
@@ -242,7 +245,7 @@ export function HojaHucha({ cerrar }) {
             className="btn btn-primario"
             onClick={() => {
               cerrar();
-              ui.abrir("apuntar", { tipo: "ahorro", objetivoId: OBJETIVO_FIJO.id, importe: falta || undefined });
+              ui.abrir("apuntar", { tipo: "ahorro", objetivoId: OBJETIVO_FIJO.id, importe: falta || undefined, mes });
             }}
           >
             <ArrowDownToLine size={16} /> Apartar{falta > 0 ? ` ${eur(falta, { corto: true })}` : ""}
@@ -253,9 +256,9 @@ export function HojaHucha({ cerrar }) {
       <dl className="cuadre">
         <dt className="total">En la hucha</dt>
         <dd className={`total ${h.saldo < 0 ? "negativo" : "positivo"}`}>{eur(h.saldo)}</dd>
-        <dt>Te toca apartar este mes</dt>
+        <dt>Te toca apartar en {nombreMes(mes)}</dt>
         <dd>{eur(h.sugerida)}</dd>
-        <dt>Llevas apartado este mes</dt>
+        <dt>Llevas apartado en {nombreMes(mes)}</dt>
         <dd>{eur(h.apartadoMes)}</dd>
       </dl>
       <p className="hucha-estado-fila">
