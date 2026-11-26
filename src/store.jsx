@@ -25,7 +25,7 @@ export function DatosProvider({ children }) {
 
 export const useDatos = () => useContext(DatosCtx);
 
-const VISTAS = ["inicio", "movimientos", "analisis", "presupuesto", "ahorros", "simulador"];
+const VISTAS = ["inicio", "movimientos", "analisis", "presupuesto", "ahorros", "simulador", "coche"];
 const vistaDeHash = () => {
   const v = location.hash.replace(/^#\/?/, "");
   return VISTAS.includes(v) ? v : "inicio";

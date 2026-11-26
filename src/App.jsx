@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
-import { House, ReceiptText, ChartColumnBig, Wallet, PiggyBank, FlaskConical, RotateCcw } from "lucide-react";
+import { House, ReceiptText, Wallet, Wrench, RotateCcw } from "lucide-react";
+import { Segmentado } from "./components/comunes.jsx";
+import Coche from "./pantallas/Coche.jsx";
+import { HojaVehiculo, HojaRepostaje, HojaMantenimiento, HojaRecordatorio } from "./pantallas/CocheHojas.jsx";
 import { useDatos, useUI, UIProvider } from "./store.jsx";
 import { mesActual } from "./lib/formato.js";
 import { ICONO } from "./config.js";
@@ -14,7 +17,7 @@ import Acceso from "./pantallas/Acceso.jsx";
 import { HojaNomina, HojaConfigNomina } from "./pantallas/Nomina.jsx";
 import { HojaCuadrar, HojaAjuste, HojaCierre, HojaSueldo, HojaPartida, HojaObjetivo, HojaAlertas, HojaRecibos, HojaAjustes, HojaElegirPartida, HojaMeses, HojaConfirmar } from "./pantallas/Hojas.jsx";
 
-const PANTALLAS = { inicio: Inicio, movimientos: Movimientos, analisis: Analisis, presupuesto: Presupuesto, ahorros: Ahorros, simulador: Simulador };
+const PANTALLAS = { inicio: Inicio, movimientos: Movimientos, analisis: Analisis, presupuesto: Presupuesto, ahorros: Ahorros, simulador: Simulador, coche: Coche };
 const CAPAS = {
   apuntar: Apuntar,
   sueldo: HojaSueldo,
@@ -32,16 +35,39 @@ const CAPAS = {
   hucha: HojaHucha,
   cuadrar: HojaCuadrar,
   ajuste: HojaAjuste,
+  vehiculo: HojaVehiculo,
+  repostaje: HojaRepostaje,
+  mantenimiento: HojaMantenimiento,
+  recordatorio: HojaRecordatorio,
 };
 
+// Cuatro pestañas; las tres últimas agrupan dos pantallas con un selector arriba
 const PESTAÑAS = [
-  { id: "inicio", texto: "Inicio", Icono: House },
-  { id: "movimientos", texto: "Historial", Icono: ReceiptText },
-  { id: "analisis", texto: "Análisis", Icono: ChartColumnBig },
-  { id: "presupuesto", texto: "Presupuesto", Icono: Wallet },
-  { id: "ahorros", texto: "Ahorros", Icono: PiggyBank },
-  { id: "simulador", texto: "Simular", Icono: FlaskConical },
+  { id: "inicio", texto: "Inicio", Icono: House, vistas: [["inicio", "Inicio"]] },
+  { id: "dinero", texto: "Mi dinero", Icono: Wallet, vistas: [["presupuesto", "Presupuesto"], ["ahorros", "Ahorros"]] },
+  { id: "movs", texto: "Movimientos", Icono: ReceiptText, vistas: [["movimientos", "Historial"], ["analisis", "Análisis"]] },
+  { id: "herramientas", texto: "Herramientas", Icono: Wrench, vistas: [["coche", "Coche"], ["simulador", "Simular"]] },
 ];
+const pestañaDe = (vista) => PESTAÑAS.find((p) => p.vistas.some(([v]) => v === vista)) || PESTAÑAS[0];
+// La última pantalla abierta de cada pestaña
+function ultimaVista(p) {
+  try {
+    const v = localStorage.getItem(`cuadra:pestaña:${p.id}`);
+    if (p.vistas.some(([x]) => x === v)) return v;
+  } catch {
+    /* sin almacenamiento */
+  }
+  return p.vistas[0][0];
+}
+function recordarVista(vista) {
+  const p = pestañaDe(vista);
+  if (p.vistas.length < 2) return;
+  try {
+    localStorage.setItem(`cuadra:pestaña:${p.id}`, vista);
+  } catch {
+    /* sin almacenamiento */
+  }
+}
 
 export default function App() {
   const { db, error, acc, sesion, motor, sync } = useDatos();
@@ -128,9 +154,17 @@ function Marco() {
     return () => window.removeEventListener("keydown", k);
   }, [ui.capas.length, ui]);
 
+  const pestaña = pestañaDe(ui.vista);
+  useEffect(() => recordarVista(ui.vista), [ui.vista]);
+
   return (
     <div className="marco">
       <main className="pantalla" key={ui.vista} aria-hidden={ui.capas.length > 0 || undefined}>
+        {pestaña.vistas.length > 1 && (
+          <div className="selector-pestaña">
+            <Segmentado peq etiqueta={pestaña.texto} valor={ui.vista} onCambio={(v) => ui.irA(v)} opciones={pestaña.vistas.map(([valor, texto]) => ({ valor, texto }))} />
+          </div>
+        )}
         <Pantalla />
       </main>
 
@@ -139,20 +173,23 @@ function Marco() {
           <img src={ICONO} alt="" width="34" height="34" />
           <b>Cuadra</b>
         </div>
-        {PESTAÑAS.map(({ id, texto, Icono }) => (
+        {PESTAÑAS.map((p) => {
+          const { id, texto, Icono } = p;
+          return (
           <button
             key={id}
             type="button"
             className="nav-item"
-            aria-current={ui.vista === id ? "page" : undefined}
-            onClick={() => ui.irA(id)}
+            aria-current={pestaña.id === id ? "page" : undefined}
+            onClick={() => ui.irA(pestaña.id === id ? ui.vista : ultimaVista(p))}
             aria-label={texto}
             title={texto}
           >
             <Icono size={21} strokeWidth={1.9} />
             <span>{texto}</span>
           </button>
-        ))}
+          );
+        })}
       </nav>
 
       {ui.capas.map((c) => {
