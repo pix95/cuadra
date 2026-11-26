@@ -3786,17 +3786,18 @@ button.recibo-ok:active {
 }
 
 /* Hucha: «Piensa que…», los próximos cobros */
+.aviso-hucha {
+  display: block;
+}
+.aviso-hucha p {
+  margin: 0;
+}
 .piensa-que {
   margin-top: 10px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  background: var(--tarjeta-2);
-  border: 1px solid var(--linea);
+  padding-top: 10px;
+  border-top: 1px solid currentColor;
+  border-top-color: color-mix(in srgb, currentColor 25%, transparent);
   font-size: 14px;
-  color: var(--texto-2);
-}
-.piensa-que b {
-  color: var(--texto);
 }
 .piensa-que ul {
   margin: 6px 0 0;

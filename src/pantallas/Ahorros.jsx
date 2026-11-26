@@ -281,14 +281,15 @@ export function HojaHucha({ cerrar }) {
           {falta > 0 ? "" : <Check size={14} />} {eur(h.apartadoMes)}
         </dd>
       </dl>
-      <p className={`aviso-linea ${falta > 0 ? "" : "ok"}`}>
+      <div className={`aviso-linea aviso-hucha ${falta > 0 ? "" : "ok"}`}>
+        <p>
         {falta > 0
           ? `Te faltan ${eur(falta)} por apartar en ${nombreMes(mes)}.`
           : h.sugerida > 0
             ? `${Mes} cumplido: no tienes que apartar nada más${h.apartadoMes - h.sugerida >= 1 ? ` (has puesto ${eur(r2(h.apartadoMes - h.sugerida))} de más)` : ""}.`
             : `En ${nombreMes(mes)} no hace falta apartar nada.`}
         {hSig.sugerida > 0 ? ` En ${nombreMes(sig)} tendrás que apartar ${eur(hSig.sugerida)}.` : ` En ${nombreMes(sig)} no hará falta apartar nada.`}
-      </p>
+        </p>
       {hSig.sugerida > 0 && (proximos.length > 0 || hSig.sinFecha > 0) && (
         <div className="piensa-que">
           <b>Piensa que…</b>
@@ -302,6 +303,7 @@ export function HojaHucha({ cerrar }) {
           </ul>
         </div>
       )}
+      </div>
       <div className="hucha-estado-fila">
         <EstadoHucha estado={h.estado} />
         <p className="ayuda">{explicacion}</p>
