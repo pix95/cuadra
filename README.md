@@ -37,16 +37,25 @@ Sin conexión puedes seguir apuntando: los cambios esperan en el dispositivo y s
 
 ## Cómo se usa
 
-- **Inicio**: lo que te queda este mes y la **previsión a fin de mes** (lo que te sobraría si lo que falta lo gastas tal como está presupuestado). Accesos rápidos para apuntar un gasto o un ingreso, cambiar el sueldo o ir al simulador. Debajo, los recibos del mes, tus objetivos de ahorro y lo último que has apuntado. La campana avisa si te pasas en alguna partida o si quedan recibos pendientes.
-- **Apuntar** (botón Gasto): teclado numérico, partidas frecuentes arriba, «Cambiar» para elegir cualquier partida y «desliza para apuntar». También sirve para ingresos extra y para apartar dinero a un objetivo. En el ordenador puedes escribir el importe con el teclado y pulsar Intro. «Devolución» apunta un importe negativo. Si te equivocas, el aviso de abajo tiene «Deshacer».
-- **Recibos del mes**: la lista de cargos fijos (hipoteca, luz, móvil, gimnasio…). Toca «Cargado» cuando te lo cobren y se apunta con su importe. Abajo están también los recibos periódicos (comunidad, agua, IBI…).
+- **Inicio**: el saldo de tu **cuenta principal** (la del banco donde entra el sueldo) y, debajo, de dónde sale: «Este mes +120 € · arrastras de octubre 85 €». Lo que sobra (o falta) un mes se queda en la cuenta y pasa al siguiente. La **previsión a fin de mes** juzga solo el mes: lo que te sobraría si lo que falta lo gastas tal como está presupuestado. Accesos rápidos para apuntar un gasto o un ingreso y cambiar el sueldo; debajo, los recibos del mes y lo último que has apuntado. La campana avisa si te pasas en alguna partida, si quedan recibos pendientes o si la hucha de recibos no mensuales va por detrás.
+- **Cuadrar con el banco** (en la tarjeta de la cuenta, en Ahorros principales, en «Recibos no mensuales» y en cada objetivo): escribe el saldo que ves en el banco y se apunta un **ajuste** por la diferencia. No cuenta como gasto ni ingreso del mes. La primera vez sirve como saldo inicial. Los ajustes salen en el historial con su etiqueta y se pueden borrar.
+- **Apuntar** (botón Gasto): teclado numérico, partidas frecuentes arriba (los recibos no salen ahí: se marcan desde «Recibos del mes»), «Cambiar» para elegir cualquier partida y «desliza para apuntar». En el ordenador la fila se mueve con la rueda o arrastrando, puedes escribir el importe y pulsar Intro, y pulsar fuera cierra. También sirve para ingresos extra y para apartar dinero a una cuenta de ahorro. «Devolución» apunta un importe negativo. En los recibos no mensuales, el interruptor **«Pagar desde la hucha»** (activado) saca el dinero de «Recibos no mensuales» y te dice cuánto sale de la hucha y cuánto de tu cuenta. Si te equivocas, el aviso de abajo tiene «Deshacer».
+- **Recibos del mes**: la lista de cargos fijos (hipoteca, luz, móvil, gimnasio…). Toca «Cargado» cuando te lo cobren y se apunta con su importe; toca el ✓ para desmarcarlo. En una sección aparte salen los **recibos no mensuales que vencen ese mes** según su calendario; esos se pagan desde la hucha.
+- **Ahorros**: cada cuenta va por separado: **Ahorros principales**, **Recibos no mensuales** y cada objetivo. «Recibos no mensuales» es la hucha para el IBI, la comunidad, el agua…: te dice cuánto apartar este mes para llegar a todos los cobros de los próximos 12 meses (si un mes apartas más, la sugerencia siguiente baja), si vas adelantado o por detrás, el próximo cobro y si la hucha llegará. «Mover ahorros» aparta dinero de la cuenta principal a la cuenta que elijas.
 - **Historial**: todos los movimientos por días, con búsqueda en todos los meses y filtros. Toca uno para corregirlo o borrarlo.
 - **Análisis**: por semana, mes o año. Gasto total comparado con el periodo anterior, % del presupuesto, gasto diario, gasto por categorías, cómo va cada partida (con una rayita que marca dónde deberías ir hoy) y, en el año, el resumen mes a mes.
-- **Presupuesto**: el reparto de tu sueldo (recibos, gasto variable, periódicos y margen) y todas las partidas. Toca una para cambiar el importe, la frecuencia, el icono o si es un recibo. Archivar oculta una partida sin borrar sus gastos.
+- **Presupuesto**: el reparto de tu sueldo (recibos, gasto variable, periódicos y margen) y todas las partidas. Toca una para cambiar el importe, la frecuencia, el icono o si es un recibo. En las que no son mensuales, pon el **«Próximo cobro»** (mes y año): a partir de él se calculan los siguientes según la frecuencia. Sin fecha, se reparten a partes iguales cada mes. Archivar oculta una partida sin borrar sus gastos.
 - **Simulador**: escenarios de «¿y si…?». Parte de tu presupuesto o empieza de cero, pon otro sueldo, desmarca o cambia gastos, marca qué pagos periódicos caerían ese mes enteros y añade gastos puntuales (un viaje, una reparación…). Ves al momento cuánto te sobraría o faltaría y qué cambia frente a tu mes real. Si te convence, «Aplicar a mi presupuesto».
 - **Ajustes** (tu avatar en Inicio): tu nombre, el estado de la sincronización, exportar a CSV para Excel, descargar una copia completa e importar un CSV.
 
 ## Para tocar el código
+
+Pruebas de los cálculos y de las operaciones (con cifras inventadas):
+
+```powershell
+npm test
+```
+
 
 Necesitas Node 20.19 o superior.
 
