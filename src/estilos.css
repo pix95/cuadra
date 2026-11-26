@@ -3776,3 +3776,11 @@ button.recibo-ok:active {
     max-width: 640px;
   }
 }
+
+/* Hucha: el estado con su explicación debajo */
+.hucha-estado-fila .ayuda {
+  margin: 6px 0 0;
+}
+.cuadre dd svg {
+  vertical-align: -2px;
+}

@@ -1,5 +1,5 @@
 // Ahorros: lo que tienes apartado y tus objetivos
-import { Plus, ArrowDownToLine, CalendarClock, Scale, TrendingUp, TrendingDown } from "lucide-react";
+import { Plus, ArrowDownToLine, CalendarClock, Scale, TrendingUp, TrendingDown, Check } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
 import { ahorradoObjetivo, ahorrosPrincipales, resumenCuentas, resumenMes, evolucionAhorro, huchaPeriodicos, primerMes, mesDe, mesEnCurso, OBJETIVO_FIJO, AHORRO_PRINCIPAL } from "../lib/calculos.js";
 import { eur, nombreMes, mayus, MESES, MESES_CORTOS, r2, sum, moverMes, mesCorto } from "../lib/formato.js";
@@ -223,6 +223,16 @@ export function HojaHucha({ cerrar }) {
   const mes = mesEnCurso(db);
   const h = huchaPeriodicos(db, mes);
   const falta = r2(Math.max(0, h.sugerida - h.apartadoMes));
+  // El mes siguiente, con lo que hay ahora (si este mes apartas más, baja)
+  const sig = moverMes(mes, 1);
+  const hSig = huchaPeriodicos(db, sig);
+  const Mes = mayus(nombreMes(mes));
+  const explicacion =
+    Math.abs(h.estado) < 1
+      ? `Con lo que hay y la cuota de cada mes (${eur(h.prorrateo, { corto: true })}), llegas justo a todos los recibos de los próximos 12 meses.`
+      : h.estado > 0
+        ? `Tienes ${eur(h.estado, { corto: true })} más de lo necesario para llegar a todos los recibos de los próximos 12 meses.`
+        : `Te faltan ${eur(-h.estado, { corto: true })} para llegar a todos los recibos de los próximos 12 meses con la cuota de cada mes (${eur(h.prorrateo, { corto: true })}).`;
   return (
     <Hoja
       titulo="Recibos no mensuales"
@@ -256,18 +266,29 @@ export function HojaHucha({ cerrar }) {
       <dl className="cuadre">
         <dt className="total">En la hucha</dt>
         <dd className={`total ${h.saldo < 0 ? "negativo" : "positivo"}`}>{eur(h.saldo)}</dd>
-        <dt>Te toca apartar en {nombreMes(mes)}</dt>
+        <dt>Tocaba apartar en {nombreMes(mes)}</dt>
         <dd>{eur(h.sugerida)}</dd>
-        <dt>Llevas apartado en {nombreMes(mes)}</dt>
-        <dd>{eur(h.apartadoMes)}</dd>
+        <dt>Has apartado en {nombreMes(mes)}</dt>
+        <dd className={falta > 0 ? "" : "positivo"}>
+          {falta > 0 ? "" : <Check size={14} />} {eur(h.apartadoMes)}
+        </dd>
       </dl>
-      <p className="hucha-estado-fila">
-        <EstadoHucha estado={h.estado} />
+      <p className={`aviso-linea ${falta > 0 ? "" : "ok"}`}>
+        {falta > 0
+          ? `Te faltan ${eur(falta)} por apartar en ${nombreMes(mes)}.`
+          : h.sugerida > 0
+            ? `${Mes} cumplido: no tienes que apartar nada más${h.apartadoMes - h.sugerida >= 1 ? ` (has puesto ${eur(r2(h.apartadoMes - h.sugerida))} de más)` : ""}.`
+            : `En ${nombreMes(mes)} no hace falta apartar nada.`}
+        {hSig.sugerida > 0 ? ` En ${nombreMes(sig)} tendrás que apartar ${eur(hSig.sugerida)}.` : ` En ${nombreMes(sig)} no hará falta apartar nada.`}
       </p>
+      <div className="hucha-estado-fila">
+        <EstadoHucha estado={h.estado} />
+        <p className="ayuda">{explicacion}</p>
+      </div>
       {h.proximo && (
         <p className={`aviso-linea ${h.proximo.cubierto ? "ok" : ""}`}>
           Próximo cobro: {h.proximo.partida.nombre}, {eur(h.proximo.importe)} en {nombreMes(h.proximo.mes, { año: true })}.{" "}
-          {h.proximo.cubierto ? "La hucha llega." : "Si solo apartas lo normal, la hucha no llega: aparta lo que te toca este mes."}
+          {h.proximo.cubierto ? "La hucha llega." : `Si solo apartas lo normal, la hucha no llega: aparta lo que te toca en ${nombreMes(mes)}.`}
         </p>
       )}
       {h.cobros.length > 0 ? (
