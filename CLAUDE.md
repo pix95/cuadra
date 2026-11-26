@@ -16,7 +16,7 @@ App de finanzas personales en español (React + Vite, servidor Node opcional, da
 
 - Movimientos: `gasto`, `ingreso`, `ahorro`, `ajuste` («Cuadrar con el banco») e `inicial` (antiguo, se trata como ajuste). `enlace` une un gasto con su retirada de la hucha «Recibos no mensuales».
 - Cuentas fijas con id reservado: cuenta principal, Ahorros principales y «Recibos no mensuales» (ver `shared/modelo.js`).
-- Nómina: `meses[mes] = { sueldo, ingresada }`; desde el día de corte (`ajustes.nomina.diaCorte`, 20 por defecto) cuenta para el mes siguiente.
+- Nómina: `meses[mes] = { sueldo, ingresada }`; la nómina siempre cuenta para el mes siguiente al día en que entra (`mesDeNomina`); `ajustes.nomina.diaCorte` solo dice desde qué día la recuerda la campana.
 - Mes de un movimiento: `mesDe(m)` (el campo `mes` si lo tiene, que solo puede ser el mes siguiente al de la fecha; si no, el de la fecha). Agrupa siempre por `mesDe`, nunca por `fecha.slice(0, 7)`. `mesEnCurso(db)` es el mes siguiente en cuanto su nómina está ingresada.
 - Coche: `vehiculos`, `repostajes`, `mantenimientos`, `recordatorios`. Repostajes y mantenimientos apuntan a su gasto con `movimientoId`; `op.guardarGasto` los crea, actualiza o borra en la misma operación, y `borrarMovimiento` / `restaurarMovimientos` los llevan juntos (marcados con `_tabla`).
 - Navegación: 4 pestañas en `src/App.jsx` (`PESTAÑAS`); las vistas siguen siendo las de siempre (`#/ahorros`, `#/coche`…).

@@ -214,18 +214,17 @@ test("sugerida y estado tienen en cuenta los ajustes y retiradas a mano del mes"
   assert.equal(h.sugerida, 66.67); // (600 − 200) / 6
 });
 
-test("nómina: a partir del día de corte cuenta para el mes siguiente", () => {
-  assert.equal(mesDeNomina("2030-11-29", 20), "2030-12");
-  assert.equal(mesDeNomina("2030-11-19", 20), "2030-11");
-  assert.equal(mesDeNomina("2030-12-02", 20), "2030-12", "si se retrasa a principios de mes, es la de ese mes");
-  assert.equal(mesDeNomina("2030-12-28", 20), "2031-01");
+test("nómina: siempre cuenta para el mes siguiente", () => {
+  assert.equal(mesDeNomina("2030-11-29"), "2030-12");
+  assert.equal(mesDeNomina("2030-11-19"), "2030-12", "siempre la del mes siguiente");
+  assert.equal(mesDeNomina("2030-12-28"), "2031-01");
 });
 
 test("nómina: importe propuesto con la paga extra y la de hoy", () => {
   const db = { ...base(), ajustes: { nombre: "", sueldoSugerido: 1400, nomina: { importe: 1500, diaCorte: 25, pagasExtra: { meses: [6, 12], importe: 700 } } } };
   assert.deepEqual(importeNomina(db, "2030-12"), { base: 1500, extra: 700, total: 2200 });
   assert.equal(importeNomina(db, "2030-11").total, 1500);
-  assert.equal(nominaDeHoy(db, "2030-11-24").mes, "2030-11");
+  assert.equal(nominaDeHoy(db, "2030-11-24").mes, "2030-12");
   db.meses["2030-12"] = { sueldo: 2200, ingresada: "2030-11-27" };
   assert.deepEqual(nominaDeHoy(db, "2030-11-27"), { mes: "2030-12", sueldo: 2200, ingresada: "2030-11-27" });
 });

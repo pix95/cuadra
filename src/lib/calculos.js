@@ -229,12 +229,10 @@ export function configNomina(db) {
   };
 }
 
-// A qué mes corresponde una nómina que entra en la cuenta un día concreto: a
-// partir del día de corte es la del mes siguiente (la del 29 de noviembre es la
-// de diciembre).
-export function mesDeNomina(fecha, diaCorte = DIA_CORTE_NOMINA) {
-  const mes = fecha.slice(0, 7);
-  return Number(fecha.slice(8, 10)) >= diaCorte ? moverMes(mes, 1) : mes;
+// La nómina que entra un día es la del mes siguiente (la del 26 de noviembre es
+// la de diciembre). Si un mes llega tarde, se elige el otro mes a mano.
+export function mesDeNomina(fecha) {
+  return moverMes(fecha.slice(0, 7), 1);
 }
 
 // Lo que se propone ingresar como nómina de un mes (con la paga extra si toca)
@@ -246,7 +244,7 @@ export function importeNomina(db, mes) {
 
 // La nómina que toca ingresar hoy: su mes y si ya está ingresada
 export function nominaDeHoy(db, hoy = hoyISO()) {
-  const mes = mesDeNomina(hoy, configNomina(db).diaCorte);
+  const mes = mesDeNomina(hoy);
   const m = db.meses[mes];
   return { mes, sueldo: m?.sueldo ?? null, ingresada: m?.ingresada ?? null };
 }
@@ -256,9 +254,9 @@ export function alertas(db, mes, hoy = hoyISO()) {
   const r = resumenMes(db, mes, hoy);
   const out = [];
   if (r.sueldo == null && r.fase !== "pasado") out.push({ nivel: "info", tipo: "nomina", mes, texto: "Aún no has ingresado la nómina de este mes." });
-  // Desde el día de corte, recordar la nómina del mes siguiente
+  // Desde el día del recordatorio, recordar la nómina del mes siguiente
   const nh = nominaDeHoy(db, hoy);
-  if (r.fase === "actual" && nh.mes !== mes && nh.sueldo == null)
+  if (r.fase === "actual" && nh.mes !== mes && nh.sueldo == null && Number(hoy.slice(8, 10)) >= configNomina(db).diaCorte)
     out.push({ nivel: "info", tipo: "nomina", mes: nh.mes, texto: "Cuando te llegue la nómina, pulsa «Ingresar nómina»: contará para el mes que viene." });
   for (const p of ordenar(db.partidas.filter((p) => p.activa && esMensual(p)))) {
     const g = r.gp.get(p.id) || 0;

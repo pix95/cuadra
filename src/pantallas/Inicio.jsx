@@ -160,7 +160,7 @@ function TarjetaSaldo({ r, mesTxt }) {
 }
 
 // «Ingresar nómina» con el engranaje de la configuración. Siempre va a la
-// nómina que toca hoy (desde el día de corte, la del mes siguiente).
+// nómina que toca: siempre la del mes siguiente.
 function BotonNomina({ db }) {
   const ui = useUI();
   const n = nominaDeHoy(db);

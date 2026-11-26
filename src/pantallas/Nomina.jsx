@@ -15,11 +15,11 @@ export function HojaNomina({ mes: mesFijo = null, inicioDeMes = false, cerrar })
   const [fecha, setFecha] = useState(() => {
     // Si el mes es otro, la fecha propuesta cae dentro de él
     const hoy = hoyISO();
-    return mesFijo && mesDeNomina(hoy, cfg.diaCorte) !== mesFijo && hoy.slice(0, 7) !== mesFijo ? `${mesFijo}-01` : hoy;
+    return mesFijo && mesDeNomina(hoy) !== mesFijo && hoy.slice(0, 7) !== mesFijo ? `${mesFijo}-01` : hoy;
   });
   const [mesElegido, setMesElegido] = useState(mesFijo);
   const [aMano, setAMano] = useState(false);
-  const mesAuto = mesDeNomina(fecha || hoyISO(), cfg.diaCorte);
+  const mesAuto = mesDeNomina(fecha || hoyISO());
   const mes = mesElegido ?? mesAuto;
   const previa = db.meses[mes] || null;
   const propuesto = importeNomina(db, mes);
@@ -69,7 +69,7 @@ export function HojaNomina({ mes: mesFijo = null, inicioDeMes = false, cerrar })
       subtitulo={
         empezando
           ? "¿Ya te ha llegado la nómina? Ingrésala para empezar el mes. Puedes cambiarla cuando quieras."
-          : `Lo que entra en tu cuenta. A partir del día ${cfg.diaCorte}, cuenta para el mes siguiente.`
+          : "Lo que entra en tu cuenta. Cuenta para el mes siguiente: la que cobras a final de noviembre es la de diciembre."
       }
       onCerrar={empezando ? posponer : cerrar}
       pie={
@@ -122,9 +122,7 @@ export function HojaNomina({ mes: mesFijo = null, inicioDeMes = false, cerrar })
         <small className="ayuda">
           {aMano
             ? `La has elegido a mano para ${nombreMes(mes)}.`
-            : mes === mesAuto && Number((fecha || "").slice(8, 10)) >= cfg.diaCorte
-              ? `Te llegó a partir del día ${cfg.diaCorte}: cuenta para ${nombreMes(mes)}.`
-              : `Cuenta para ${nombreMes(mes)}.`}
+            : `Cuenta para ${nombreMes(mes)}.${mes === mesAuto ? " Si es la de este mes porque llegó tarde, elige el otro." : ""}`}
           {previa?.ingresada && ` Ya la ingresaste el ${fechaCorta(previa.ingresada)}.`}
         </small>
       </div>
@@ -159,7 +157,6 @@ export function HojaConfigNomina({ cerrar }) {
   const [mesesExtra, setMesesExtra] = useState(cfg.pagasExtra.meses.length ? cfg.pagasExtra.meses : [6, 12]);
   const [extra, setExtra] = useState(aInput(cfg.pagasExtra.importe || ""));
   const [error, setError] = useState("");
-  const ejemplo = `2030-11-${String(Math.min(28, Math.max(dia, 1) + 2)).padStart(2, "0")}`;
 
   async function guardar() {
     const imp = importe.trim() === "" ? null : parseImporte(importe);
@@ -191,7 +188,7 @@ export function HojaConfigNomina({ cerrar }) {
     >
       <CampoImporte etiqueta="Nómina neta habitual" valor={importe} onCambio={setImporte} placeholder="Ej.: 1.500" />
       <label className="campo">
-        <span>Cuenta para el mes siguiente a partir del día</span>
+        <span>Recordarme la nómina a partir del día</span>
         <select className="select" value={dia} onChange={(e) => setDia(Number(e.target.value))}>
           {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
             <option key={d} value={d}>
@@ -200,7 +197,7 @@ export function HojaConfigNomina({ cerrar }) {
           ))}
         </select>
         <small className="ayuda">
-          Si te llega el {fechaCorta(ejemplo)}, será la nómina de {nombreMes(mesDeNomina(ejemplo, dia))}. Antes del día {dia}, la del mismo mes (por si un mes se retrasa).
+          Desde ese día, la campana te recuerda ingresar la nómina del mes siguiente. La nómina siempre cuenta para el mes siguiente al día en que te llega.
         </small>
       </label>
       <Interruptor activo={conExtras} onCambio={setConExtras} etiqueta="Pagas extra" descripcion="Se suman a la nómina de los meses que elijas" />
