@@ -19,5 +19,18 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // Si la página llega sin estilos (por ejemplo, abierta justo mientras se
+      // publica una versión nueva), se recarga una vez sola.
+      window.addEventListener("load", function () {
+        try {
+          var sinEstilos = getComputedStyle(document.documentElement).getPropertyValue("--fondo").trim() === "";
+          if (sinEstilos && !sessionStorage.getItem("cuadra:recarga-estilos")) {
+            sessionStorage.setItem("cuadra:recarga-estilos", "1");
+            location.reload();
+          } else if (!sinEstilos) sessionStorage.removeItem("cuadra:recarga-estilos");
+        } catch (e) {}
+      });
+    </script>
   </body>
 </html>
