@@ -3804,3 +3804,20 @@ button.recibo-ok:active {
   padding-left: 18px;
   line-height: 1.55;
 }
+
+/* Eliminar una partida con gastos: qué hacer con ellos */
+.borrar-partida {
+  display: block;
+  margin-bottom: 14px;
+}
+.borrar-partida p {
+  margin: 0 0 10px;
+}
+.borrar-partida .fila-botones {
+  flex-wrap: wrap;
+}
+.borrar-partida small {
+  display: block;
+  margin-top: 10px;
+  opacity: 0.85;
+}

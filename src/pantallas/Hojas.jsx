@@ -160,16 +160,28 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
       setError(e.message);
     }
   }
-  async function eliminar() {
+  async function eliminar(modo) {
     if (!confirmarBorrar) return setConfirmarBorrar(true);
     try {
-      await acc.borrarPartida(partida.id);
+      const r = await acc.borrarPartida(partida.id, modo ? { movimientos: modo } : undefined);
       cerrar();
-      ui.avisar("Partida eliminada");
+      const susGastos = usos === 1 ? "su gasto" : `sus ${usos} gastos`;
+      const texto = modo === "hucha" ? `Partida eliminada; ${susGastos} ${usos === 1 ? "pasa" : "pasan"} a la hucha` : modo === "borrar" ? `Partida y ${susGastos} eliminados` : "Partida eliminada";
+      ui.avisar(texto, {
+        texto: "Deshacer",
+        fn: async () => {
+          const original = r?.partida || partida;
+          const p = await acc.guardarPartida(original);
+          if (!original.activa) await acc.guardarPartida({ ...p, activa: false });
+          if (r?.antes?.length) await acc.restaurarMovimientos(r.antes);
+        },
+      });
     } catch (e) {
       setError(e.message);
     }
   }
+  const totalUsos = partida ? r2(db.movimientos.filter((m) => m.partidaId === partida.id).reduce((s, m) => s + m.importe, 0)) : 0;
+  const esDeHucha = partida && partidaHuchaDuplicada({ partidas: [{ ...partida, activa: true }] });
 
   return (
     <Hoja
@@ -178,8 +190,8 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
       onCerrar={cerrar}
       pie={
         <>
-          {partida && !usos && (
-            <button type="button" className={`btn ${confirmarBorrar ? "btn-peligro" : "btn-texto"}`} onClick={eliminar}>
+          {partida && (!usos || !confirmarBorrar) && (
+            <button type="button" className={`btn ${confirmarBorrar ? "btn-peligro" : "btn-texto"}`} onClick={() => eliminar()}>
               <Trash2 size={16} /> {confirmarBorrar ? "¿Seguro?" : "Eliminar"}
             </button>
           )}
@@ -194,6 +206,27 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
         </>
       }
     >
+      {partida && usos > 0 && confirmarBorrar && (
+        <div className="aviso-linea borrar-partida">
+          <p>
+            Tiene {usos} {usos === 1 ? "gasto apuntado" : "gastos apuntados"} ({eur(totalUsos)}). ¿Qué hago con {usos === 1 ? "él" : "ellos"}?
+          </p>
+          <div className="fila-botones">
+            {esDeHucha && (
+              <button type="button" className="btn btn-primario" onClick={() => eliminar("hucha")}>
+                Pasarlos a la hucha
+              </button>
+            )}
+            <button type="button" className="btn btn-peligro" onClick={() => eliminar("borrar")}>
+              <Trash2 size={16} /> Borrarlos también
+            </button>
+            <button type="button" className="btn btn-texto" onClick={() => setConfirmarBorrar(false)}>
+              Cancelar
+            </button>
+          </div>
+          {esDeHucha && <small>«Pasarlos a la hucha»: eran lo que apartabas a mano, así que cuentan como ahorro en «Recibos no mensuales» y tu cuenta queda igual. «Borrarlos» devuelve ese dinero a tu cuenta.</small>}
+        </div>
+      )}
       <div className="partida-preview">
         <Ficha icono={f.icono} color={colorCategoria(f.categoria || "Otros")} size={52} />
         <span>

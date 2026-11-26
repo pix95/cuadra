@@ -128,3 +128,20 @@ test("el recibo pagado desde la hucha y su retirada cuentan para el mismo mes", 
   assert.equal(r.mes, "2030-06");
   assert.equal(d.movimientos.find((m) => m.id === r.enlace).mes, "2030-06");
 });
+
+test("eliminar una partida con gastos: pasarlos a la hucha o borrarlos, y deshacer", () => {
+  const { d, comida } = preparar(0);
+  op.crearMovimiento(d, { tipo: "gasto", partidaId: comida.id, fecha: "2030-03-01", importe: 100 });
+  op.crearMovimiento(d, { tipo: "gasto", partidaId: comida.id, fecha: "2030-04-01", importe: 100 });
+  assert.throws(() => op.borrarPartida(d, comida.id), /archívala/);
+  const { r } = op.borrarPartida(d, comida.id, { movimientos: "hucha" });
+  assert.equal(d.partidas.some((p) => p.id === comida.id), false);
+  assert.equal(hucha(d), 200, "los gastos pasan a ser ahorro a la hucha");
+  // Deshacer: vuelve la partida y los gastos como estaban
+  op.crearPartida(d, r.partida);
+  op.restaurarMovimientos(d, r.antes);
+  assert.equal(hucha(d), 0);
+  assert.equal(d.movimientos.filter((m) => m.partidaId === comida.id && m.tipo === "gasto").length, 2);
+  op.borrarPartida(d, comida.id, { movimientos: "borrar" });
+  assert.equal(d.movimientos.length, 0);
+});

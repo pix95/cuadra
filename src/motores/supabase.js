@@ -479,7 +479,7 @@ export function motorSupabase({ url, clave, cliente = null }) {
     borrarRecordatorio: borrar("Recordatorio"),
     borrarRegistroCoche: (tabla, id) => ejecutar(op.borrarRegistroCoche, tabla, id),
     guardarPartida: guardar("partidas", "Partida"),
-    borrarPartida: borrar("Partida"),
+    borrarPartida: (id, opciones) => ejecutar(op.borrarPartida, id, opciones),
     guardarObjetivo: guardar("objetivos", "Objetivo"),
     borrarObjetivo: borrar("Objetivo"),
     guardarSimulacion: guardar("simulaciones", "Simulacion"),

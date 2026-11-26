@@ -681,12 +681,36 @@ export const op = {
     Object.assign(actual, normalizarPartida(validarPartida(b, actual)));
     return hecho(actual, subir("partidas", actual));
   },
-  borrarPartida(d, id) {
-    buscar(d.partidas, id, "esa partida");
-    const usos = d.movimientos.filter((m) => m.partidaId === id).length;
-    if (usos) falla(`Tiene ${usos} ${usos === 1 ? "gasto apuntado" : "gastos apuntados"}: archívala en lugar de eliminarla.`, 409);
+  // Con gastos apuntados hay que decir qué hacer con ellos (opciones.movimientos):
+  //  - "borrar": se borran también (con sus retiradas y registros del coche);
+  //  - "hucha": pasan a ser ahorro a «Recibos no mensuales» (para la partida que
+  //    se usaba a mano para apartar a la hucha).
+  // Devuelve la partida y los movimientos como estaban, para «Deshacer».
+  borrarPartida(d, id, opciones) {
+    const partida = { ...buscar(d.partidas, id, "esa partida") };
+    const suyos = d.movimientos.filter((m) => m.partidaId === id);
+    const modo = opciones?.movimientos;
+    if (suyos.length && modo !== "borrar" && modo !== "hucha")
+      falla(`Tiene ${suyos.length} ${suyos.length === 1 ? "gasto apuntado" : "gastos apuntados"}: archívala en lugar de eliminarla.`, 409);
+    const cambios = [];
+    const antes = [];
+    if (modo === "hucha") {
+      for (const m of suyos) {
+        antes.push({ ...m });
+        Object.assign(m, { tipo: "ahorro", partidaId: null, objetivoId: OBJETIVO_FIJO.id, concepto: m.concepto || "Apartar a la hucha" });
+        cambios.push(subir("movimientos", m));
+      }
+    } else if (modo === "borrar") {
+      for (const m of suyos) {
+        if (!d.movimientos.some((x) => x.id === m.id)) continue;
+        const { r, cambios: c } = op.borrarMovimiento(d, m.id);
+        antes.push(...r.borrados);
+        cambios.push(...c);
+      }
+    }
     d.partidas = d.partidas.filter((p) => p.id !== id);
-    return hecho({ ok: true }, quitar("partidas", id));
+    cambios.push(quitar("partidas", id));
+    return hecho({ ok: true, partida, antes }, ...cambios);
   },
 
   crearObjetivo(d, b = {}) {
