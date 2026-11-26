@@ -135,19 +135,20 @@ export function ahorradoObjetivo(db, id) {
   return r2(sum(db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === id), (m) => m.importe));
 }
 
-// Partidas más usadas en los últimos 90 días (para los accesos rápidos)
-export function partidasFrecuentes(db, n = 8) {
-  const limite = sumarDias(hoyISO(), -90);
+// Partidas más usadas en los últimos 90 días (para los accesos rápidos).
+// Los recibos no salen: se marcan desde «Recibos del mes» (y siguen en «Todas»).
+export function partidasFrecuentes(db, n = 8, hoy = hoyISO()) {
+  const limite = sumarDias(hoy, -90);
   const cuenta = new Map();
   db.movimientos.forEach((m) => {
     if (m.tipo === "gasto" && m.fecha >= limite) cuenta.set(m.partidaId, (cuenta.get(m.partidaId) || 0) + 1);
   });
-  const activas = db.partidas.filter((p) => p.activa);
-  let ids = [...cuenta.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id).filter((id) => activas.some((p) => p.id === id));
-  // Si aún hay pocos datos, se completan con las partidas variables (las que más se apuntan)
-  for (const p of ordenar(activas.filter((p) => !p.recibo && esMensual(p)))) if (!ids.includes(p.id)) ids.push(p.id);
-  for (const p of ordenar(activas)) if (!ids.includes(p.id)) ids.push(p.id);
-  return ids.slice(0, n).map((id) => activas.find((p) => p.id === id));
+  const elegibles = db.partidas.filter((p) => p.activa && !p.recibo);
+  const ids = [...cuenta.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id).filter((id) => elegibles.some((p) => p.id === id));
+  // Si aún hay pocos datos, se completan con las partidas mensuales y luego el resto
+  for (const p of ordenar(elegibles.filter(esMensual))) if (!ids.includes(p.id)) ids.push(p.id);
+  for (const p of ordenar(elegibles)) if (!ids.includes(p.id)) ids.push(p.id);
+  return ids.slice(0, n).map((id) => elegibles.find((p) => p.id === id));
 }
 
 // Avisos para la campana

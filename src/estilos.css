@@ -1710,9 +1710,14 @@ button.recibo-ok:active {
   display: flex;
   gap: 12px;
   overflow-x: auto;
-  margin: 0 -20px;
-  padding: 4px 20px 2px;
+  margin: -4px -20px 0;
+  /* Hueco arriba para que el anillo de la opción elegida no se corte */
+  padding: 8px 20px 4px;
   scrollbar-width: none;
+  cursor: grab;
+}
+.avatares:active {
+  cursor: grabbing;
 }
 .avatares::-webkit-scrollbar {
   display: none;

@@ -3,6 +3,58 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight, Delete, X } from "lucide-react";
 import { partes, r2 } from "../lib/formato.js";
 
+// Fila horizontal que se puede mover con el ratón: arrastrando o con la rueda.
+// En el móvil se desliza con el dedo como siempre.
+export function useDesplazarConRaton() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let inicio = null;
+    let movido = false;
+    const bajar = (e) => {
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      inicio = { x: e.clientX, scroll: el.scrollLeft };
+      movido = false;
+    };
+    const mover = (e) => {
+      if (!inicio) return;
+      const dx = e.clientX - inicio.x;
+      if (Math.abs(dx) > 5) movido = true;
+      if (movido) el.scrollLeft = inicio.scroll - dx;
+    };
+    const soltar = () => {
+      inicio = null;
+    };
+    // Si se ha arrastrado, el clic final no elige nada
+    const clic = (e) => {
+      if (movido) {
+        e.stopPropagation();
+        e.preventDefault();
+        movido = false;
+      }
+    };
+    const rueda = (e) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || el.scrollWidth <= el.clientWidth) return;
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    };
+    el.addEventListener("pointerdown", bajar);
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+    el.addEventListener("click", clic, true);
+    el.addEventListener("wheel", rueda, { passive: false });
+    return () => {
+      el.removeEventListener("pointerdown", bajar);
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      el.removeEventListener("click", clic, true);
+      el.removeEventListener("wheel", rueda);
+    };
+  }, []);
+  return ref;
+}
+
 // Importe grande con los decimales más apagados: 1.234,56 €
 export function Cifra({ valor, signo = false, className = "", sinDecimales = false }) {
   const { neg, entero, dec } = partes(valor);

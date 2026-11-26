@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, CalendarDays, Trash2, ChevronsUpDown, Plus, Undo2, PencilLine, LayoutGrid, Zap } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { Teclado, aplicarTecla, valorTeclado, tecladoDe, CifraTecleada, Deslizar, Segmentado } from "../components/comunes.jsx";
+import { Teclado, aplicarTecla, valorTeclado, tecladoDe, CifraTecleada, Deslizar, Segmentado, useDesplazarConRaton } from "../components/comunes.jsx";
 import { Ficha, colorCategoria } from "../lib/iconos.jsx";
 import { partidasFrecuentes, esMensual, anual, gastosPorPartida, ahorradoObjetivo, objetivosConFijo, AHORRO_PRINCIPAL } from "../lib/calculos.js";
 import { eur, hoyISO, mesActual, diasEnMes, fechaRelativa, fechaCorta, nombreMes, r2 } from "../lib/formato.js";
@@ -44,6 +44,7 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
   const [guardando, setGuardando] = useState(false);
   const inputFecha = useRef(null);
   const raiz = useRef(null);
+  const filaRapida = useDesplazarConRaton();
   // El foco pasa a esta pantalla (si no, Intro pulsaría el botón de detrás)
   useEffect(() => {
     if (!raiz.current?.contains(document.activeElement)) raiz.current?.focus({ preventScroll: true });
@@ -160,8 +161,12 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
       aria-label={TITULOS[tipo][editando ? 1 : 0]}
       ref={raiz}
       tabIndex={-1}
-      // Con ratón, los botones no se quedan el foco: así Intro siempre guarda
-      onMouseDown={(e) => e.target.closest("button") && e.preventDefault()}
+      onMouseDown={(e) => {
+        // Pulsar fuera de la tarjeta la cierra
+        if (e.target === e.currentTarget) return cerrar();
+        // Con ratón, los botones no se quedan el foco: así Intro siempre guarda
+        if (e.target.closest("button")) e.preventDefault();
+      }}
     >
       <div className="apuntar-in">
         <header className="apuntar-cab">
@@ -205,7 +210,7 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
         />
 
         {/* Fila de accesos rápidos */}
-        <div className="avatares" role="listbox" aria-label={tipo === "gasto" ? "Partidas frecuentes" : tipo === "ingreso" ? "Tipo de ingreso" : "Objetivos"}>
+        <div className="avatares" ref={filaRapida} role="listbox" aria-label={tipo === "gasto" ? "Partidas frecuentes" : tipo === "ingreso" ? "Tipo de ingreso" : "Objetivos"}>
           {tipo === "gasto" && (
             <>
               <button type="button" className="avatar-op nuevo" onClick={elegirPartida}>
