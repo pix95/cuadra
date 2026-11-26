@@ -11,7 +11,8 @@
     "dev:local": "concurrently -k -n api,web -c magenta,cyan \"node --watch-path=server --watch-path=shared --watch-path=presupuesto-inicial.js server/index.js\" \"vite --mode servidor\"",
     "app": "vite build --mode servidor && node server/index.js",
     "start": "node server/index.js",
-    "red": "node server/index.js --red"
+    "red": "node server/index.js --red",
+    "test": "node --test \"test/*.test.js\""
   },
   "engines": {
     "node": ">=20.19"

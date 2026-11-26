@@ -11,8 +11,14 @@ const CONFLICTO = { partidas: "id", movimientos: "id", objetivos: "id", simulaci
 
 // ---------- De la app a Supabase y al revés ----------
 const aFila = {
-  partidas: (p) => ({ id: p.id, nombre: p.nombre, categoria: p.categoria, importe: p.importe, frecuencia: p.frecuencia, orden: Math.round(p.orden), activa: p.activa, recibo: p.recibo, icono: p.icono }),
-  movimientos: (m) => ({ id: m.id, tipo: m.tipo, fecha: m.fecha, importe: m.importe, partida_id: m.partidaId, objetivo_id: m.objetivoId, concepto: m.concepto, creado: m.creado }),
+  partidas: (p) => ({
+    id: p.id, nombre: p.nombre, categoria: p.categoria, importe: p.importe, frecuencia: p.frecuencia, orden: Math.round(p.orden),
+    activa: p.activa, recibo: p.recibo, icono: p.icono, cobro_ancla: p.cobroAncla ?? null,
+  }),
+  movimientos: (m) => ({
+    id: m.id, tipo: m.tipo, fecha: m.fecha, importe: m.importe, partida_id: m.partidaId, objetivo_id: m.objetivoId,
+    concepto: m.concepto, creado: m.creado, enlace: m.enlace ?? null,
+  }),
   meses: (x) => ({ mes: x.mes, sueldo: x.sueldo }),
   objetivos: (o) => ({ id: o.id, nombre: o.nombre, meta: o.meta, fecha: o.fecha, icono: o.icono, creado: o.creado }),
   simulaciones: (s) => ({
@@ -26,7 +32,7 @@ const aFila = {
 };
 const num = (v) => (v == null ? null : Number(v));
 const deFila = {
-  partidas: (f) => normalizarPartida({ ...f, importe: num(f.importe) }),
+  partidas: (f) => normalizarPartida({ ...f, importe: num(f.importe), cobroAncla: f.cobro_ancla }),
   movimientos: (f) => ({
     id: f.id,
     tipo: f.tipo || "gasto",
@@ -36,6 +42,7 @@ const deFila = {
     objetivoId: f.objetivo_id ?? null,
     concepto: f.concepto || "",
     creado: f.creado || f.updated_at || null,
+    enlace: f.enlace ?? null,
   }),
   objetivos: (f) => ({ id: f.id, nombre: f.nombre, meta: num(f.meta) || 0, fecha: f.fecha || null, icono: f.icono || "hucha", creado: f.creado }),
   simulaciones: (f) => ({
@@ -394,6 +401,8 @@ export function motorSupabase({ url, clave, cliente = null }) {
 
     guardarMovimiento: guardar("movimientos", "Movimiento"),
     borrarMovimiento: borrar("Movimiento"),
+    guardarGasto: (m, opciones) => ejecutar(op.guardarGasto, m, opciones),
+    restaurarMovimientos: (lista, quitar) => ejecutar(op.restaurarMovimientos, lista, quitar),
     guardarPartida: guardar("partidas", "Partida"),
     borrarPartida: borrar("Partida"),
     guardarObjetivo: guardar("objetivos", "Objetivo"),

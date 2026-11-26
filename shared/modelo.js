@@ -36,6 +36,21 @@ export const AHORRO_PRINCIPAL = {
   fijo: true,
 };
 export const objetivosConFijo = (d) => [AHORRO_PRINCIPAL, OBJETIVO_FIJO, ...(d.objetivos || [])];
+// La cuenta del banco donde entra el sueldo. Solo se usa en los ajustes
+// («Cuadrar con el banco»); lo que sobra cada mes se queda en ella.
+export const CUENTA_PRINCIPAL = {
+  id: "00000000-0000-4000-8000-0000000000cc",
+  nombre: "Cuenta principal",
+  meta: 0,
+  fecha: null,
+  icono: "cartera",
+  fijo: true,
+};
+// Todas las cuentas a las que se les puede hacer un ajuste
+export const cuentas = (d) => [CUENTA_PRINCIPAL, ...objetivosConFijo(d)];
+// A qué cuenta pertenece un ajuste ("inicial" es el ajuste antiguo de Ahorros principales)
+export const cuentaDeAjuste = (m) => (m.tipo === "inicial" ? AHORRO_PRINCIPAL.id : m.tipo === "ajuste" ? m.objetivoId : null);
+export const TIPOS_MOVIMIENTO = ["gasto", "ingreso", "ahorro", "ajuste", "inicial"];
 
 export class ErrorDatos extends Error {
   constructor(msg, status = 400) {
@@ -90,6 +105,8 @@ export function normalizarPartida(p, i = 0) {
     icono: typeof p.icono === "string" && p.icono ? p.icono.slice(0, 30) : "paquete",
     orden: Number.isFinite(Number(p.orden)) ? Number(p.orden) : i,
     activa: p.activa !== false,
+    // Mes del próximo cobro de un recibo no mensual ("AAAA-MM"); sin él, es un fondo sin fecha
+    cobroAncla: (p.frecuencia ?? "Mensual") !== "Mensual" && esMes(p.cobroAncla) ? p.cobroAncla : null,
   };
 }
 
@@ -136,13 +153,17 @@ function validarPartida(b, base = {}) {
   if ("icono" in b) p.icono = texto(b.icono, "El icono", { max: 30 }) || "paquete";
   if ("activa" in b) p.activa = Boolean(b.activa);
   if ("orden" in b) p.orden = numero(b.orden, "El orden");
+  if ("cobroAncla" in b) {
+    if (b.cobroAncla && !esMes(b.cobroAncla)) falla("El mes del próximo cobro no es válido.");
+    p.cobroAncla = b.cobroAncla || null;
+  }
   return p;
 }
 
 function validarMovimiento(b, d, base = {}) {
   const m = { ...base };
   const tipo = b.tipo ?? base.tipo ?? "gasto";
-  if (!["gasto", "ingreso", "ahorro", "inicial"].includes(tipo)) falla("Tipo de movimiento no válido.");
+  if (!TIPOS_MOVIMIENTO.includes(tipo)) falla("Tipo de movimiento no válido.");
   m.tipo = tipo;
   if ("fecha" in b || !base.id) {
     if (!esFecha(b.fecha)) falla("La fecha no es válida.");
@@ -165,8 +186,24 @@ function validarMovimiento(b, d, base = {}) {
     // Se permite conservar el de un objetivo ya eliminado al editar
     if (!objetivosConFijo(d).some((o) => o.id === objetivoId) && objetivoId !== base.objetivoId) falla("El objetivo no existe.");
     m.objetivoId = objetivoId;
+  } else if (tipo === "ajuste") {
+    if (!objetivoId) falla("Elige la cuenta que quieres cuadrar.");
+    if (!cuentas(d).some((o) => o.id === objetivoId) && objetivoId !== base.objetivoId) falla("La cuenta no existe.");
+    m.objetivoId = objetivoId;
   }
+  // Movimiento enlazado (gasto pagado desde la hucha ↔ su retirada)
+  const enlace = "enlace" in b ? b.enlace : base.enlace;
+  m.enlace = enlace && UUID.test(String(enlace)) ? String(enlace) : null;
   return m;
+}
+
+// Saldo de la hucha «Recibos no mensuales» sin contar unos movimientos concretos
+function saldoHucha(d, sin = []) {
+  return r2(
+    d.movimientos
+      .filter((m) => !sin.includes(m.id) && ((m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id) || (m.tipo === "ajuste" && m.objetivoId === OBJETIVO_FIJO.id)))
+      .reduce((s, m) => s + m.importe, 0)
+  );
 }
 
 function validarObjetivo(b, base = {}) {
@@ -253,10 +290,78 @@ export const op = {
     Object.assign(actual, validarMovimiento(b, d, actual));
     return hecho(actual, subir("movimientos", actual));
   },
+  // Borra un movimiento y, si va enlazado (gasto pagado desde la hucha), también el otro.
+  // Devuelve los borrados para poder deshacerlo.
   borrarMovimiento(d, id) {
-    buscar(d.movimientos, id, "ese movimiento");
-    d.movimientos = d.movimientos.filter((m) => m.id !== id);
-    return hecho({ ok: true }, quitar("movimientos", id));
+    const m = buscar(d.movimientos, id, "ese movimiento");
+    const otro = m.enlace && d.movimientos.find((x) => x.id === m.enlace);
+    const ids = [m.id, ...(otro ? [otro.id] : [])];
+    const borrados = d.movimientos.filter((x) => ids.includes(x.id)).map((x) => ({ ...x }));
+    d.movimientos = d.movimientos.filter((x) => !ids.includes(x.id));
+    return hecho({ ok: true, borrados }, ...ids.map((i) => quitar("movimientos", i)));
+  },
+
+  // Vuelve a dejar unos movimientos como estaban (para «Deshacer»): los que
+  // existen se sobrescriben, los que no se crean con el mismo id, y los de
+  // "quitar" se borran.
+  restaurarMovimientos(d, lista = [], quitarIds = []) {
+    const cambios = [];
+    for (const id of quitarIds) {
+      if (d.movimientos.some((m) => m.id === id)) {
+        d.movimientos = d.movimientos.filter((m) => m.id !== id);
+        cambios.push(quitar("movimientos", id));
+      }
+    }
+    for (const x of lista) {
+      const i = d.movimientos.findIndex((m) => m.id === x.id);
+      const m = { ...validarMovimiento(x, d, i >= 0 ? d.movimientos[i] : {}), id: x.id, creado: x.creado || ahora() };
+      if (i >= 0) d.movimientos[i] = m;
+      else d.movimientos.push(m);
+      cambios.push(subir("movimientos", m));
+    }
+    return hecho({ ok: true }, ...cambios);
+  },
+
+  // Guarda un gasto (nuevo o corregido). Si es de una partida no mensual y se
+  // paga desde la hucha, crea o actualiza a la vez la retirada de «Recibos no
+  // mensuales» por lo que la hucha pueda cubrir, enlazada con el gasto.
+  guardarGasto(d, b = {}, { desdeHucha = false } = {}) {
+    const existente = b.id && d.movimientos.find((m) => m.id === b.id);
+    const gasto = existente ? { ...existente, ...validarMovimiento(b, d, existente) } : { ...validarMovimiento(b, d), id: idNuevo(b.id, d.movimientos), creado: ahora() };
+    if (gasto.tipo !== "gasto") falla("Solo los gastos se pueden pagar desde la hucha.");
+    const partida = d.partidas.find((p) => p.id === gasto.partidaId);
+    const retiradaVieja = gasto.enlace && d.movimientos.find((m) => m.id === gasto.enlace);
+    const usarHucha = desdeHucha && partida && partida.frecuencia !== "Mensual" && gasto.importe > 0;
+    const deHucha = usarHucha ? r2(Math.min(gasto.importe, Math.max(0, saldoHucha(d, retiradaVieja ? [retiradaVieja.id] : [])))) : 0;
+    const cambios = [];
+
+    if (deHucha > 0) {
+      const retirada = {
+        ...(retiradaVieja || { id: uid(), creado: ahora() }),
+        tipo: "ahorro",
+        objetivoId: OBJETIVO_FIJO.id,
+        partidaId: null,
+        importe: -deHucha,
+        fecha: gasto.fecha,
+        concepto: `Pago de ${partida.nombre}`.slice(0, 80),
+        enlace: gasto.id,
+      };
+      gasto.enlace = retirada.id;
+      if (retiradaVieja) Object.assign(retiradaVieja, retirada);
+      else d.movimientos.push(retirada);
+      cambios.push(subir("movimientos", retirada));
+    } else {
+      if (retiradaVieja) {
+        d.movimientos = d.movimientos.filter((m) => m.id !== retiradaVieja.id);
+        cambios.push(quitar("movimientos", retiradaVieja.id));
+      }
+      gasto.enlace = null;
+    }
+
+    if (existente) Object.assign(existente, gasto);
+    else d.movimientos.push(gasto);
+    cambios.unshift(subir("movimientos", gasto));
+    return { r: { ...gasto, deHucha, deCuenta: r2(gasto.importe - deHucha) }, cambios };
   },
 
   crearPartida(d, b = {}) {

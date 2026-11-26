@@ -21,6 +21,8 @@ create table if not exists public.partidas (
 alter table public.partidas enable row level security;
 alter table public.partidas add column if not exists recibo boolean not null default false;
 alter table public.partidas add column if not exists icono text not null default 'paquete';
+-- 2.1: mes del próximo cobro de un recibo no mensual ("2027-06")
+alter table public.partidas add column if not exists cobro_ancla text;
 
 -- ---------- Objetivos de ahorro ----------
 create table if not exists public.objetivos (
@@ -49,6 +51,8 @@ alter table public.movimientos enable row level security;
 alter table public.movimientos add column if not exists tipo text not null default 'gasto';
 alter table public.movimientos add column if not exists objetivo_id uuid;
 alter table public.movimientos add column if not exists creado timestamptz not null default now();
+-- 2.1: gasto pagado desde la hucha ↔ su retirada (cada uno apunta al otro)
+alter table public.movimientos add column if not exists enlace uuid;
 -- Los ingresos y el ahorro no llevan partida
 alter table public.movimientos alter column partida_id drop not null;
 create index if not exists movimientos_usuario_fecha on public.movimientos (user_id, fecha);

@@ -27,6 +27,13 @@ export function motorServidor() {
     poner({ ...estado, [col]: estado[col].filter((x) => x.id !== id) });
   };
 
+  // Operación compuesta: el servidor devuelve el resultado y el estado entero
+  const remoto = async (nombre, ...args) => {
+    const { r, estado: nuevo } = await api.post(`/op/${nombre}`, { args });
+    poner(nuevo);
+    return r;
+  };
+
   async function cargar() {
     try {
       L.sync?.({ estado: "sincronizando" });
@@ -48,7 +55,9 @@ export function motorServidor() {
     },
     sincronizar: cargar,
     guardarMovimiento: guardarEn("movimientos"),
-    borrarMovimiento: borrarDe("movimientos"),
+    borrarMovimiento: (id) => remoto("borrarMovimiento", id),
+    guardarGasto: (m, opciones) => remoto("guardarGasto", m, opciones),
+    restaurarMovimientos: (lista, quitar) => remoto("restaurarMovimientos", lista, quitar),
     guardarPartida: guardarEn("partidas"),
     borrarPartida: borrarDe("partidas"),
     guardarObjetivo: guardarEn("objetivos"),

@@ -1,7 +1,7 @@
 // Cálculos del presupuesto. Todo es puro: recibe los datos y devuelve cifras.
 import { r2, sum, diasEnMes, fechaDe, iso, sumarDias, moverMes, hoyISO } from "./formato.js";
-import { OBJETIVO_FIJO, AHORRO_PRINCIPAL, objetivosConFijo } from "../../shared/modelo.js";
-export { OBJETIVO_FIJO, AHORRO_PRINCIPAL, objetivosConFijo };
+import { OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL, objetivosConFijo, cuentas, cuentaDeAjuste } from "../../shared/modelo.js";
+export { OBJETIVO_FIJO, AHORRO_PRINCIPAL, CUENTA_PRINCIPAL, objetivosConFijo, cuentas, cuentaDeAjuste };
 
 export const FRECUENCIAS = ["Mensual", "Bimestral", "Trimestral", "Semestral", "Anual"];
 export const VECES = { Mensual: 12, Bimestral: 6, Trimestral: 4, Semestral: 2, Anual: 1 };
@@ -41,9 +41,10 @@ export function ordenCategorias(partidas) {
   return out;
 }
 
-// "inicial" es lo que ya tenías ahorrado antes de usar la app: no pertenece a ningún mes
-export const movsDeMes = (db, mes) => db.movimientos.filter((m) => m.tipo !== "inicial" && m.fecha.startsWith(mes));
-export const ahorroInicial = (db) => db.movimientos.filter((m) => m.tipo === "inicial");
+// Los ajustes ("Cuadrar con el banco", y los antiguos "inicial") cambian el
+// saldo de una cuenta pero no son gasto, ingreso ni ahorro de ningún mes.
+export const esAjuste = (m) => m.tipo === "ajuste" || m.tipo === "inicial";
+export const movsDeMes = (db, mes) => db.movimientos.filter((m) => !esAjuste(m) && m.fecha.startsWith(mes));
 
 export function gastosPorPartida(movs, partidas) {
   const ids = new Set(partidas.map((p) => p.id));
@@ -73,19 +74,23 @@ export function resumenMes(db, mes, hoy = hoyISO()) {
   const entradas = r2((sueldo ?? 0) + ingresos);
   const disponible = r2(entradas - gastado - ahorrado);
 
-  // Lo que todavía falta por salir según el presupuesto (nunca negativo por partida)
-  // Lo apartado este mes a "Recibos no mensuales" ya cubre la parte de los pagos periódicos
+  // Lo que todavía falta por salir según el presupuesto (nunca negativo por partida).
+  // Los recibos no mensuales cuentan como lo que toca apartar este mes a la hucha
+  // (la aportación sugerida) menos lo que ya has apartado.
   let pendienteMensual = 0;
-  let pendientePeriodico = 0;
   for (const p of db.partidas) {
-    if (!p.activa) continue;
-    const falta = Math.max(0, previstoMes(p) - (gp.get(p.id) || 0));
-    if (esMensual(p)) pendienteMensual += falta;
-    else pendientePeriodico += falta;
+    if (!p.activa || !esMensual(p)) continue;
+    pendienteMensual += Math.max(0, p.importe - (gp.get(p.id) || 0));
   }
-  const aHucha = sum(movs.filter((m) => m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id), (m) => m.importe);
-  const pendiente = r2(pendienteMensual + Math.max(0, pendientePeriodico - aHucha));
+  const hucha = aportacionHucha(db, mes);
+  const pendiente = r2(pendienteMensual + Math.max(0, hucha.sugerida - hucha.apartadoMes));
   const prevision = r2(disponible - pendiente);
+
+  // La cuenta principal arrastra lo que sobró (o faltó) de los meses anteriores
+  const arrastre = saldoCuentaAl(db, moverMes(mes, -1), hoy);
+  const ajustesMes = r2(sum(db.movimientos.filter((m) => m.tipo === "ajuste" && m.objetivoId === CUENTA_PRINCIPAL.id && m.fecha.startsWith(mes)), (m) => m.importe));
+  const delMes = mes >= primerMesCuenta(db, hoy) ? disponible : 0;
+  const saldoCuenta = r2(arrastre + delMes + ajustesMes);
 
   const pres = presupuestoMensual(db.partidas);
   const dias = diasEnMes(mes);
@@ -99,7 +104,7 @@ export function resumenMes(db, mes, hoy = hoyISO()) {
     porDia[d] += m.tipo === "ingreso" ? m.importe : -m.importe;
   }
   const serie = [];
-  let saldo = sueldo ?? 0;
+  let saldo = arrastre + (sueldo ?? 0);
   for (let d = 1; d <= Math.max(1, dia); d++) {
     saldo += porDia[d];
     serie.push(r2(saldo));
@@ -107,6 +112,7 @@ export function resumenMes(db, mes, hoy = hoyISO()) {
 
   return {
     mes, sueldo, gastado, ingresos, ahorrado, entradas, disponible, pendiente, prevision,
+    arrastre, ajustesMes, saldoCuenta, hucha,
     presupuesto: pres, gp, fase, dias, dia, serie, movs,
     gastadoPct: entradas > 0 ? ((gastado + ahorrado) / entradas) * 100 : 0,
     ahorroPct: entradas > 0 ? (prevision / entradas) * 100 : 0,
@@ -122,6 +128,15 @@ export function recibosMes(db, mes) {
   });
 }
 
+// Recibos no mensuales que vencen en un mes según su calendario
+export function recibosNoMensualesMes(db, mes) {
+  const gp = gastosPorPartida(movsDeMes(db, mes), db.partidas);
+  return ordenar(db.partidas.filter((p) => p.activa && !esMensual(p) && p.importe > 0 && cobraEnMes(p, mes))).map((p) => {
+    const pagado = r2(gp.get(p.id) || 0);
+    return { partida: p, pagado, hecho: pagado > 0 };
+  });
+}
+
 // Gastos de cada partida periódica en lo que va de año (hasta el mes indicado)
 export function acumuladoAño(db, mes) {
   const año = mes.slice(0, 4);
@@ -129,10 +144,17 @@ export function acumuladoAño(db, mes) {
   return gastosPorPartida(movs, db.partidas);
 }
 
-export function ahorradoObjetivo(db, id) {
-  if (id === OBJETIVO_FIJO.id) return huchaPeriodicos(db).saldo;
-  if (id === AHORRO_PRINCIPAL.id) return ahorrosPrincipales(db);
-  return r2(sum(db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === id), (m) => m.importe));
+// Saldo de una cuenta de ahorro: lo apartado − lo retirado + los ajustes
+// (con "hasta", solo los movimientos anteriores a esa fecha)
+export function ahorradoObjetivo(db, id, hasta = null) {
+  return r2(
+    sum(
+      db.movimientos.filter(
+        (m) => ((m.tipo === "ahorro" && m.objetivoId === id) || (esAjuste(m) && cuentaDeAjuste(m) === id)) && (!hasta || m.fecha < hasta)
+      ),
+      (m) => m.importe
+    )
+  );
 }
 
 // Partidas más usadas en los últimos 90 días (para los accesos rápidos).
@@ -166,6 +188,21 @@ export function alertas(db, mes, hoy = hoyISO()) {
     const pend = recibosMes(db, mes).filter((x) => !x.hecho);
     if (pend.length) out.push({ nivel: "info", tipo: "recibos", texto: `${pend.length} ${pend.length === 1 ? "recibo pendiente" : "recibos pendientes"} este mes (${eurTxt(sum(pend, (x) => x.partida.importe))}).` });
     if (r.sueldo != null && r.prevision < 0) out.push({ nivel: "mal", tipo: "prevision", texto: `Con lo previsto acabarías el mes en ${eurTxt(r.prevision)}.` });
+    const pendNM = recibosNoMensualesMes(db, mes).filter((x) => !x.hecho);
+    if (pendNM.length)
+      out.push({
+        nivel: "info",
+        tipo: "recibos",
+        texto: `${pendNM.length === 1 ? `${pendNM[0].partida.nombre} vence` : `${pendNM.length} recibos no mensuales vencen`} este mes (${eurTxt(sum(pendNM, (x) => x.partida.importe))}).`,
+      });
+    const h = r.hucha;
+    if (h.proximo && h.proximo.meses <= 1 && !h.proximo.cubierto)
+      out.push({
+        nivel: "mal",
+        tipo: "hucha",
+        texto: `La hucha no llega a ${h.proximo.partida.nombre} (${eurTxt(h.proximo.importe)}, ${h.proximo.meses === 0 ? "este mes" : "el mes que viene"}).`,
+      });
+    else if (h.estado < -1) out.push({ nivel: "aviso", tipo: "hucha", texto: `La hucha de recibos no mensuales va ${eurTxt(-h.estado)} por detrás.` });
   }
   return out;
 }
@@ -289,16 +326,119 @@ const ultimoDia = (mes) => `${mes}-${String(diasEnMes(mes)).padStart(2, "0")}`;
 
 // Primer mes con datos (sueldo o movimientos)
 export function primerMes(db, hoy = hoyISO()) {
-  const meses = [...Object.keys(db.meses), ...db.movimientos.filter((m) => m.tipo !== "inicial").map((m) => m.fecha.slice(0, 7))].filter((m) => m <= hoy.slice(0, 7)).sort();
+  const meses = [...Object.keys(db.meses), ...db.movimientos.filter((m) => !esAjuste(m)).map((m) => m.fecha.slice(0, 7))].filter((m) => m <= hoy.slice(0, 7)).sort();
   return meses[0] || hoy.slice(0, 7);
 }
 
-// Si el mes pasado te sobró dinero, propone apartarlo
+// ---------- Cuenta principal ----------
+// El arrastre empieza en el primer mes con sueldo: los meses anteriores (los de
+// la versión antigua no tienen sueldo) solo restarían y no reflejan la cuenta.
+export function primerMesCuenta(db, hoy = hoyISO()) {
+  const conSueldo = Object.keys(db.meses).filter((m) => db.meses[m]?.sueldo != null).sort();
+  return conSueldo[0] || hoy.slice(0, 7);
+}
+
+// Lo que sobra (o falta) de un mes: sueldo + ingresos − gastos − ahorro neto
+function disponibleMes(db, mes) {
+  let total = db.meses[mes]?.sueldo ?? 0;
+  for (const m of db.movimientos) {
+    if (esAjuste(m) || !m.fecha.startsWith(mes)) continue;
+    total += m.tipo === "ingreso" ? m.importe : -m.importe;
+  }
+  return total;
+}
+
+// Saldo de la cuenta principal al cerrar un mes: lo que sobró de cada mes desde
+// el primero con sueldo (también en negativo) + los ajustes hasta ese mes.
+export function saldoCuentaAl(db, mes, hoy = hoyISO()) {
+  let saldo = sum(db.movimientos.filter((m) => m.tipo === "ajuste" && m.objetivoId === CUENTA_PRINCIPAL.id && m.fecha.slice(0, 7) <= mes), (m) => m.importe);
+  for (let m = primerMesCuenta(db, hoy); m <= mes; m = moverMes(m, 1)) saldo += disponibleMes(db, m);
+  return r2(saldo);
+}
+
+// Si el mes pasado te sobró dinero, propone apartarlo: como mucho lo que sobró
+// ese mes, sin pasar de lo que había en la cuenta al cerrarlo.
 export function propuestaCierre(db, hoy = hoyISO()) {
   const mes = moverMes(hoy.slice(0, 7), -1);
   const r = resumenMes(db, mes, hoy);
-  if (r.sueldo == null || r.disponible < 1) return null;
-  return { mes, importe: r.disponible, fecha: ultimoDia(mes) };
+  const importe = r2(Math.min(r.disponible, r.saldoCuenta));
+  if (r.sueldo == null || importe < 1) return null;
+  return { mes, importe, fecha: ultimoDia(mes) };
+}
+
+// ---------- Recibos no mensuales: calendario ----------
+const PASO = { Bimestral: 2, Trimestral: 3, Semestral: 6, Anual: 12 };
+const mesesEntre = (a, b) => {
+  const [ya, ma] = a.split("-").map(Number);
+  const [yb, mb] = b.split("-").map(Number);
+  return (yb - ya) * 12 + (mb - ma);
+};
+// ¿Se cobra este recibo en ese mes? Desde el mes del próximo cobro, cada tantos meses
+export function cobraEnMes(p, mes) {
+  if (esMensual(p) || !p.cobroAncla) return false;
+  const n = mesesEntre(p.cobroAncla, mes);
+  return n >= 0 && n % PASO[p.frecuencia] === 0;
+}
+// Los próximos cobros de una partida a partir de un mes
+export function proximosCobros(p, desde, n = 4) {
+  const out = [];
+  if (esMensual(p) || !p.cobroAncla) return out;
+  let m = p.cobroAncla;
+  while (m < desde) m = moverMes(m, PASO[p.frecuencia]);
+  for (let i = 0; i < n; i++, m = moverMes(m, PASO[p.frecuencia])) out.push(m);
+  return out;
+}
+// Cobros de los recibos no mensuales en los próximos n meses (contando el actual)
+export function calendarioCobros(db, desde, n = 12) {
+  const out = [];
+  const conFecha = ordenar(db.partidas.filter((p) => p.activa && !esMensual(p) && p.importe > 0 && p.cobroAncla));
+  for (let k = 0; k < n; k++) {
+    const mes = moverMes(desde, k);
+    for (const p of conFecha) if (cobraEnMes(p, mes)) out.push({ mes, k, partida: p, importe: p.importe });
+  }
+  return out;
+}
+
+// Cuánto apartar este mes a «Recibos no mensuales» para llegar a todos los
+// cobros de los próximos 12 meses. Se supone que se aparta a principio de mes,
+// antes de los recibos.
+//  - sugerida: el máximo, entre los meses k (0 = este), de
+//    (cobros hasta k − saldo a principio de mes) / (k + 1), nunca menos de 0,
+//    más el prorrateo de los recibos sin fecha.
+//  - estado: saldo − saldo necesario (el mínimo que bastaría aportando solo el
+//    prorrateo normal cada mes). Positivo: vas adelantado; negativo: por detrás.
+//    Apartar este mes hasta el prorrateo no lo cambia (es lo que tocaba); lo
+//    que pase de ahí, sí.
+//  - proximo: el próximo cobro y si la hucha llegará (aportando el prorrateo).
+export function aportacionHucha(db, mes = hoyISO().slice(0, 7)) {
+  const saldoInicio = ahorradoObjetivo(db, OBJETIVO_FIJO.id, `${mes}-01`);
+  const aportes = db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id && m.fecha.startsWith(mes) && m.importe > 0 && !m.enlace);
+  const apartadoMes = r2(sum(aportes, (m) => m.importe));
+  const saldo = ahorradoObjetivo(db, OBJETIVO_FIJO.id);
+
+  const noMensuales = db.partidas.filter((p) => p.activa && !esMensual(p) && p.importe > 0);
+  const sinFecha = r2(sum(noMensuales.filter((p) => !p.cobroAncla), prorrateo));
+  const prorrateoConFecha = sum(noMensuales.filter((p) => p.cobroAncla), prorrateo);
+  const prorrateoTotal = r2(prorrateoConFecha + sinFecha);
+
+  const cobros = calendarioCobros(db, mes, 12);
+  const acumulado = [];
+  for (let k = 0, c = 0; k < 12; k++) {
+    c += sum(cobros.filter((x) => x.k === k), (x) => x.importe);
+    acumulado.push(c);
+  }
+  const sugerida = r2(Math.max(0, ...acumulado.map((c, k) => (c - saldoInicio) / (k + 1))) + sinFecha);
+  const necesario = Math.max(0, ...acumulado.map((c, k) => c - prorrateoConFecha * (k + 1)));
+  const estado = r2(saldoInicio - necesario + Math.max(0, apartadoMes - prorrateoTotal));
+
+  let proximo = null;
+  if (cobros.length) {
+    const x = cobros[0];
+    // Lo que habrá ese mes: lo de este mes (o el prorrateo si aún no has apartado) + el prorrateo de los siguientes
+    const tendra = Math.max(saldo, saldoInicio + prorrateoConFecha) + prorrateoConFecha * x.k;
+    proximo = { partida: x.partida, mes: x.mes, importe: x.importe, meses: x.k, cubierto: tendra + 0.005 >= acumulado[x.k] };
+  }
+  return { saldo, saldoInicio, apartadoMes, sugerida, estado, proximo, cobros, prorrateo: prorrateoTotal, sinFecha };
 }
 
 // Lo apartado cada mes (últimos n meses hasta "hasta") y qué parte del sueldo supone
@@ -307,32 +447,21 @@ export function evolucionAhorro(db, hasta, n = 12) {
   for (let i = n - 1; i >= 0; i--) {
     const mes = moverMes(hasta, -i);
     const movs = movsDeMes(db, mes);
-    const ahorrado = r2(sum(movs.filter((m) => m.tipo === "ahorro"), (m) => m.importe));
+    // Las retiradas para pagar recibos (enlazadas) no son "dejar de ahorrar"
+    const ahorrado = r2(sum(movs.filter((m) => m.tipo === "ahorro" && !m.enlace), (m) => m.importe));
     const entradas = r2((db.meses[mes]?.sueldo ?? 0) + sum(movs.filter((m) => m.tipo === "ingreso"), (m) => m.importe));
     out.push({ mes, ahorrado, entradas, pct: entradas > 0 ? (ahorrado / entradas) * 100 : null });
   }
   return out;
 }
 
-// "Recibos no mensuales": lo que has apartado tú, y cuánto tocaría apartar al mes
-// para cubrir los recibos que no son mensuales (IBI, comunidad, agua…).
-export function huchaPeriodicos(db) {
-  const aportes = db.movimientos.filter((m) => m.tipo === "ahorro" && m.objetivoId === OBJETIVO_FIJO.id);
-  const saldo = r2(sum(aportes, (m) => m.importe));
-  const alMes = r2(sum(db.partidas.filter((p) => p.activa && !esMensual(p)), prorrateo));
-  return { saldo, alMes };
+// "Recibos no mensuales": saldo y cuánto apartar (ver aportacionHucha)
+export function huchaPeriodicos(db, mes) {
+  const h = aportacionHucha(db, mes);
+  return { ...h, alMes: h.prorrateo };
 }
 
-// Cada cuenta de ahorro va por separado: Ahorros principales (lo que ya tenías
-// + lo que apartas ahí), Recibos no mensuales y cada objetivo.
-export function ahorrosPrincipales(db) {
-  return r2(
-    sum(
-      db.movimientos.filter((m) => m.tipo === "inicial" || (m.tipo === "ahorro" && m.objetivoId === AHORRO_PRINCIPAL.id)),
-      (m) => m.importe
-    )
-  );
-}
+export const ahorrosPrincipales = (db) => ahorradoObjetivo(db, AHORRO_PRINCIPAL.id);
 
 // Lo que hay entre todas las cuentas de ahorro
 export function resumenCuentas(db) {

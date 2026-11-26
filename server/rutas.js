@@ -30,6 +30,16 @@ for (const [ruta, nombre] of colecciones) {
   rutas.delete(`/${ruta}/:id`, (req, res) => res.json(cambiar((d) => op[`borrar${nombre}`](d, req.params.id))));
 }
 
+// Operaciones que tocan varios movimientos a la vez (gasto + retirada de la hucha…)
+const OPS_COMPUESTAS = new Set(["guardarGasto", "borrarMovimiento", "restaurarMovimientos"]);
+rutas.post("/op/:nombre", (req, res) => {
+  const { nombre } = req.params;
+  if (!OPS_COMPUESTAS.has(nombre)) return res.status(404).json({ error: "Esa operación no existe." });
+  const args = Array.isArray(cuerpo(req).args) ? cuerpo(req).args : [];
+  const r = cambiar((d) => op[nombre](d, ...args));
+  res.json({ r, estado: leer() });
+});
+
 rutas.post("/simulaciones/:id/aplicar", (req, res) => res.json(cambiar((d) => op.aplicarSimulacion(d, req.params.id))));
 
 rutas.get("/exportar.csv", (req, res) => {
