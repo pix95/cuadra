@@ -118,6 +118,8 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
     recibo: partida?.recibo || false,
     icono: partida?.icono || "paquete",
     cobroAncla: partida?.cobroAncla || "",
+    vehiculoId: partida?.vehiculoId || "",
+    pctCoche: String(partida?.pctCoche ?? 100),
   }));
   const [error, setError] = useState("");
   const [confirmarBorrar, setConfirmarBorrar] = useState(false);
@@ -137,6 +139,8 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
         categoria: f.categoria.trim() || "Otros",
         importe,
         cobroAncla: f.frecuencia !== "Mensual" ? f.cobroAncla || null : null,
+        vehiculoId: f.vehiculoId || null,
+        pctCoche: f.vehiculoId ? Number(f.pctCoche) || 100 : null,
       });
       cerrar();
       ui.avisar(partida ? "Partida guardada" : `Partida «${r.nombre}» añadida`);
@@ -249,6 +253,36 @@ export function HojaPartida({ partida = null, categoria = "", cerrar }) {
         )}
       </div>
       <Interruptor activo={f.recibo} onCambio={set("recibo")} etiqueta="Es un recibo" descripcion="Un cargo que llega una vez por periodo (hipoteca, luz, gimnasio…). Sale en la lista de recibos." />
+      {(db.vehiculos || []).length > 0 && (
+        <>
+          <Interruptor
+            activo={Boolean(f.vehiculoId)}
+            onCambio={(on) => set("vehiculoId")(on ? (db.vehiculos.find((v) => v.activo) || db.vehiculos[0]).id : "")}
+            etiqueta="Es del coche"
+            descripcion="Cuenta en lo que te cuesta el coche al mes (seguro, impuesto de circulación, parking…)."
+          />
+          {f.vehiculoId && (
+            <div className="campos-2">
+              {db.vehiculos.length > 1 ? (
+                <label className="campo">
+                  <span>Vehículo</span>
+                  <select className="select" value={f.vehiculoId} onChange={(e) => set("vehiculoId")(e.target.value)}>
+                    {db.vehiculos.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <label className="campo">
+                <span>Parte del coche (%)</span>
+                <input inputMode="numeric" value={f.pctCoche} onChange={(e) => set("pctCoche")(e.target.value.replace(/\D/g, "").slice(0, 3))} placeholder="100" />
+              </label>
+            </div>
+          )}
+        </>
+      )}
       <div className="campo">
         <span>Icono</span>
         <div className="iconos-rejilla">
@@ -414,6 +448,7 @@ export function HojaAlertas({ cerrar }) {
     cerrar();
     if (a.tipo === "nomina") ui.abrir("nomina", { mes: a.mes });
     else if (a.tipo === "recibos") ui.abrir("recibos", { mes: ui.mes });
+    else if (a.tipo === "coche") ui.irA("coche");
     else ui.irA("analisis");
   }
   return (
@@ -672,6 +707,8 @@ export function HojaAjustes({ cerrar }) {
             {resumen.repetidos ? `, ${resumen.repetidos} ya estaban` : ""}
             {resumen.errores ? `, ${resumen.errores} filas no válidas` : ""}.
             {resumen.partidasNuevas.length ? ` Partidas archivadas creadas: ${resumen.partidasNuevas.join(", ")}.` : ""}
+            {resumen.repostajes || resumen.mantenimientos ? ` Coche: ${resumen.repostajes || 0} repostajes y ${resumen.mantenimientos || 0} mantenimientos.` : ""}
+            {resumen.cocheSinVehiculo ? ` ${resumen.cocheSinVehiculo} filas del coche sin vehículo (crea el coche y vuelve a importar).` : ""}
           </span>
         </div>
       )}

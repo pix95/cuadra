@@ -1,12 +1,12 @@
 // Pantalla para apuntar (o corregir) un gasto, un ingreso o un ahorro,
 // con teclado numérico y "desliza para apuntar".
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, CalendarDays, Trash2, ChevronsUpDown, Plus, Undo2, PencilLine, LayoutGrid, Zap } from "lucide-react";
+import { ChevronLeft, CalendarDays, Trash2, ChevronsUpDown, Plus, Undo2, PencilLine, LayoutGrid, Zap, Fuel } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
 import { Teclado, aplicarTecla, valorTeclado, tecladoDe, CifraTecleada, Deslizar, Segmentado, Interruptor, useDesplazarConRaton } from "../components/comunes.jsx";
 import { Ficha, colorCategoria } from "../lib/iconos.jsx";
-import { partidasFrecuentes, esMensual, anual, gastosPorPartida, ahorradoObjetivo, objetivosConFijo, AHORRO_PRINCIPAL, OBJETIVO_FIJO } from "../lib/calculos.js";
-import { eur, hoyISO, mesActual, diasEnMes, fechaRelativa, fechaCorta, nombreMes, r2 } from "../lib/formato.js";
+import { partidasFrecuentes, esMensual, anual, gastosPorPartida, ahorradoObjetivo, objetivosConFijo, AHORRO_PRINCIPAL, OBJETIVO_FIJO, vehiculoDeCombustible, kmEstimados } from "../lib/calculos.js";
+import { eur, hoyISO, mesActual, diasEnMes, fechaRelativa, fechaCorta, nombreMes, r2, aInput, parseImporte } from "../lib/formato.js";
 
 const TITULOS = { gasto: ["Nuevo gasto", "Editar gasto"], ingreso: ["Nuevo ingreso", "Editar ingreso"], ahorro: ["Apartar ahorro", "Editar ahorro"] };
 const CONCEPTOS_INGRESO = [
@@ -44,6 +44,13 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
   const [guardando, setGuardando] = useState(false);
   // Recibos no mensuales: se pagan desde la hucha «Recibos no mensuales» (activado por defecto)
   const [desdeHucha, setDesdeHucha] = useState(movimiento ? Boolean(movimiento.enlace) || movimiento.tipo !== "gasto" : true);
+  // Gasto de la partida de combustible de un vehículo: litros, km y lleno (opcionales)
+  const repVinculado = movimiento ? (db.repostajes || []).find((r) => r.movimientoId === movimiento.id) || null : null;
+  const [rep, setRep] = useState({
+    litros: repVinculado ? aInput(repVinculado.litros) : "",
+    km: repVinculado ? String(repVinculado.km) : "",
+    lleno: repVinculado ? repVinculado.lleno : true,
+  });
   const inputFecha = useRef(null);
   const raiz = useRef(null);
   const filaRapida = useDesplazarConRaton();
@@ -53,6 +60,7 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
   }, []);
 
   const partida = db.partidas.find((p) => p.id === partidaId);
+  const vehiculo = tipo === "gasto" && !negativo ? vehiculoDeCombustible(db, partidaId) : null;
   const objetivo = objetivosConFijo(db).find((o) => o.id === objetivoId);
   const importe = valorTeclado(valor);
 
@@ -89,6 +97,16 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
     if (guardando) return;
     setError("");
     if (!importe) return setError("Escribe un importe con el teclado.");
+    // Repostaje: se guarda si hay litros y km; vacío, el gasto va solo
+    let repostaje;
+    if (vehiculo) {
+      const lit = parseImporte(rep.litros);
+      const km = rep.km.trim() === "" ? null : Number(rep.km.replace(/\D/g, ""));
+      if (rep.litros.trim() || rep.km.trim()) {
+        if (!(lit > 0) || km == null) return setError("Para guardarlo como repostaje pon los litros y los km (o deja los dos vacíos).");
+        repostaje = { ...(repVinculado ? { id: repVinculado.id } : {}), vehiculoId: vehiculo.id, litros: lit, km, lleno: rep.lleno, gasolinera: repVinculado?.gasolinera ?? concepto.trim() };
+      } else if (repVinculado) repostaje = null;
+    } else if (repVinculado) repostaje = null;
     if (tipo === "gasto" && !partida) return setError("Elige en qué partida va el gasto.");
     if (tipo === "ahorro" && !objetivoId) return setError("Elige o crea un objetivo de ahorro.");
     const mov = {
@@ -104,13 +122,18 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
     try {
       // Antes de guardar: cómo estaban el movimiento y su pareja, para «Deshacer»
       const antes = editando ? db.movimientos.filter((m) => m.id === movimiento.id || (movimiento.enlace && m.id === movimiento.enlace)).map((m) => ({ ...m })) : [];
-      const r = tipo === "gasto" ? await acc.guardarGasto(mov, { desdeHucha: Boolean(pagoHucha) && desdeHucha }) : await acc.guardarMovimiento(mov);
+      const r =
+        tipo === "gasto"
+          ? await acc.guardarGasto(mov, { desdeHucha: Boolean(pagoHucha) && desdeHucha, ...(repostaje !== undefined ? { repostaje } : {}) })
+          : await acc.guardarMovimiento(mov);
       cerrar();
       const otroMes = fecha.slice(0, 7) !== ui.mes ? ` (${nombreMes(fecha.slice(0, 7))})` : "";
-      const hucha = r.deHucha ? ` · ${eur(r.deHucha, { corto: true })} de la hucha` : "";
+      const hucha = r.deHucha ? ` · ${eur(r.deHucha, { corto: true })} de la hucha` : r.repostaje ? " · repostaje" : "";
       if (editando) {
         const nuevos = r.enlace && !antes.some((m) => m.id === r.enlace) ? [r.enlace] : [];
-        ui.avisar(`Movimiento actualizado${otroMes}${hucha}`, { texto: "Deshacer", fn: () => acc.restaurarMovimientos(antes, nuevos) });
+        // guardarGasto ya dice cómo deshacerlo (también el repostaje o el mantenimiento)
+        const deshacer = r.deshacer || { antes, quitar: nuevos };
+        ui.avisar(`Movimiento actualizado${otroMes}${hucha}`, { texto: "Deshacer", fn: () => acc.restaurarMovimientos(deshacer.antes, deshacer.quitar) });
       } else {
         const donde = tipo === "gasto" ? ` en ${nombreCorto(partida.nombre)}` : tipo === "ahorro" ? ` para ${objetivo?.nombre}` : " de ingreso";
         ui.avisar(`${eur(r.importe)}${donde}${otroMes}${hucha}`, { texto: "Deshacer", fn: () => acc.borrarMovimiento(r.id) });
@@ -366,6 +389,25 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
               <p className={`pago-hucha-reparto ${pagoHucha.deCuenta > 0 && desdeHucha ? "falta" : ""}`}>
                 De la hucha {eur(pagoHucha.deHucha, { corto: true })} · de tu cuenta {eur(pagoHucha.deCuenta, { corto: true })}
               </p>
+            </div>
+          )}
+          {vehiculo && (
+            <div className="apuntar-repostaje">
+              <span className="apuntar-repostaje-tit">
+                <Fuel size={14} /> Repostaje de {vehiculo.nombre} <small>(opcional)</small>
+              </span>
+              <div className="apuntar-repostaje-campos">
+                <input inputMode="decimal" aria-label="Litros" placeholder={vehiculo.combustible === "electrico" ? "kWh" : "Litros"} value={rep.litros} onChange={(e) => setRep((x) => ({ ...x, litros: e.target.value }))} />
+                <input inputMode="numeric" aria-label="Km del cuentakilómetros" placeholder={`Km (≈ ${kmEstimados(db, vehiculo).toLocaleString("es-ES")})`} value={rep.km} onChange={(e) => setRep((x) => ({ ...x, km: e.target.value.replace(/[^\d.]/g, "") }))} />
+                <button type="button" className={`pill pill-boton ${rep.lleno ? "pill-lima" : ""}`} aria-pressed={rep.lleno} onClick={() => setRep((x) => ({ ...x, lleno: !x.lleno }))}>
+                  {rep.lleno ? "Lleno" : "Parcial"}
+                </button>
+              </div>
+              {importe > 0 && parseImporte(rep.litros) > 0 && (
+                <small className="apuntar-repostaje-precio">
+                  {(importe / parseImporte(rep.litros)).toLocaleString("es-ES", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} €/{vehiculo.combustible === "electrico" ? "kWh" : "l"}
+                </small>
+              )}
             </div>
           )}
           {verNota && (

@@ -92,7 +92,7 @@ test("recordatorios: vencido, pronto por fecha o por km y al día", () => {
   assert.equal(porKm.estado, "pronto");
   assert.equal(porKm.texto, "Revisión en 800 km");
   assert.equal(estadoRecordatorio(r({ proximaFecha: "2030-09-01", proximosKm: 30000 }), 20000, 1000, "2030-03-01").estado, "al-dia");
-  assert.equal(estadoRecordatorio(r({ proximosKm: 19900 }), 20000, 1000, "2030-03-01").texto, "Revisión pasado de 100 km");
+  assert.equal(estadoRecordatorio(r({ proximosKm: 19900 }), 20000, 1000, "2030-03-01").texto, "Revisión venció hace 100 km");
 });
 
 test("tras un mantenimiento, el recordatorio pasa a su siguiente fecha y km", () => {

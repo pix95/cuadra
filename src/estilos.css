@@ -1177,41 +1177,37 @@ button.tarjeta:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Seis secciones: en móviles el menú se ajusta para que quepa */
-@media (max-width: 460px) {
-  .nav {
-    gap: 2px;
-    padding: 6px;
-  }
-  .nav-item {
-    min-width: 40px;
-    height: 50px;
-  }
-  .nav-item[aria-current="page"] {
-    flex: 1 1 auto;
-    min-width: 0;
-    padding: 0 12px;
-    gap: 6px;
-    font-size: 14px;
-  }
+/* Cuatro pestañas: las que no están elegidas se reparten el sitio y la
+   elegida enseña su nombre entero */
+.nav-item {
+  flex: 1 1 0;
+}
+.nav-item svg {
+  width: 23px;
+  height: 23px;
+}
+.nav-item[aria-current="page"] {
+  flex: 0 0 auto;
+  font-size: 15px;
 }
 @media (max-width: 400px) {
   .nav {
     width: calc(100% - 16px);
     padding: 5px;
   }
-  .nav-item {
-    min-width: 36px;
-  }
-  .nav-item svg {
-    width: 20px;
-    height: 20px;
-  }
   .nav-item[aria-current="page"] {
-    padding: 0 10px;
-    gap: 5px;
-    font-size: 13.5px;
+    padding: 0 14px;
+    gap: 6px;
+    font-size: 14.5px;
   }
+}
+
+/* Selector de las pestañas con dos pantallas («Presupuesto | Ahorros»…) */
+.selector-pestaña {
+  padding: 4px 0 6px;
+}
+.selector-pestaña .segmentado {
+  max-width: 420px;
 }
 
 /* ---------- Aviso (toast) ---------- */
@@ -3232,7 +3228,9 @@ button.recibo-ok:active {
   .analisis,
   .presupuesto,
   .simulador,
-  .movimientos {
+  .movimientos,
+  .coche,
+  .selector-pestaña {
     max-width: 760px;
     margin: 0 auto;
   }
@@ -3342,6 +3340,7 @@ button.recibo-ok:active {
   .ahorros,
   .analisis,
   .presupuesto,
+  .coche,
   .simulador.editor {
     max-width: none;
   }
@@ -3513,5 +3512,267 @@ button.recibo-ok:active {
   *::after {
     animation: none !important;
     transition: none !important;
+  }
+}
+
+/* ---------- Coche ---------- */
+.coche-coste {
+  padding: 20px 20px 16px;
+}
+.coche-coste-cab {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.coche-coste-cab small {
+  display: block;
+  font-size: 14px;
+  color: var(--texto-sobre-degradado);
+  margin-bottom: 2px;
+}
+.coche-coste-cifra {
+  font-size: 44px;
+}
+.coche-coste-nota {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--texto-sobre-degradado);
+}
+.coche-datos {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+.coche-datos div {
+  min-width: 0;
+}
+.coche-datos dt {
+  font-size: 12px;
+  color: var(--texto-sobre-degradado);
+}
+.coche-datos dd {
+  margin: 2px 0 0;
+  font-weight: 700;
+  font-size: 14.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 400px) {
+  .coche-datos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.coche-aviso {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border-color: rgba(244, 207, 106, 0.4);
+  background: color-mix(in srgb, #f4cf6a 9%, var(--tarjeta));
+  color: #f4cf6a;
+}
+.coche-aviso p {
+  margin: 0;
+  color: var(--texto-2);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.coche-aviso b {
+  display: block;
+  color: var(--texto);
+  margin-bottom: 2px;
+}
+.estado-rec {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  background: rgba(100, 220, 203, 0.14);
+  color: #64dccb;
+}
+.estado-rec.pronto {
+  background: rgba(244, 207, 106, 0.15);
+  color: #f4cf6a;
+}
+.estado-rec.vencido {
+  background: rgba(255, 138, 149, 0.16);
+  color: #ff98a8;
+}
+.coche-vacio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--texto-2);
+  border-style: dashed;
+  font-size: 14.5px;
+}
+.coche-acciones {
+  grid-template-columns: repeat(2, 1fr);
+  margin: 22px 0 6px;
+}
+.coche-mes .barra {
+  margin-top: 10px;
+}
+.coche-ajustes {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+}
+.ver-mas {
+  margin: 8px auto 0;
+  display: block;
+}
+.coche-bienvenida {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 24px 22px;
+}
+.coche-bienvenida h2 {
+  margin: 4px 0 0;
+  font-size: 22px;
+}
+.coche-bienvenida ul {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.6;
+}
+.coche-bienvenida p {
+  margin: 0;
+  color: var(--texto-sobre-degradado);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.coche-bienvenida .btn {
+  margin-top: 8px;
+}
+/* Inicio: tarjeta pequeña cuando hay algo pendiente */
+.coche-inicio {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.coche-inicio-icono {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: rgba(244, 207, 106, 0.15);
+  color: #f4cf6a;
+}
+.coche-inicio.nivel-mal .coche-inicio-icono {
+  background: rgba(255, 138, 149, 0.16);
+  color: #ff98a8;
+}
+/* Apuntar: litros y km cuando el gasto es de gasolina */
+.apuntar-repostaje {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: var(--tarjeta-2);
+  border: 1px solid var(--linea);
+}
+.apuntar-repostaje-tit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--texto-2);
+}
+.apuntar-repostaje-tit small {
+  font-weight: 500;
+  color: var(--texto-3);
+}
+.apuntar-repostaje-campos {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr auto;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: center;
+}
+.apuntar-repostaje-campos input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--tarjeta);
+  border: 1px solid var(--linea);
+  outline: none;
+}
+.apuntar-repostaje-campos input:focus {
+  border-color: rgba(229, 123, 176, 0.7);
+}
+.apuntar-repostaje-precio {
+  display: block;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--lima);
+  font-weight: 650;
+}
+@media (min-width: 1200px) {
+  /* Coche: números y gráficos a la izquierda; recordatorios e historial a la derecha */
+  .coche {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "tit tit"
+      "coste recordatorios"
+      "aviso recordatorios"
+      "acciones recordatorios"
+      "mes historial"
+      "consumo historial"
+      "precio historial"
+      "ajustes historial"
+      ". historial";
+    grid-template-rows: auto auto auto auto auto auto auto auto 1fr;
+    column-gap: 36px;
+    align-items: start;
+  }
+  .coche > .titular {
+    grid-area: tit;
+  }
+  .ac-coste {
+    grid-area: coste;
+  }
+  .ac-aviso {
+    grid-area: aviso;
+  }
+  .ac-recordatorios {
+    grid-area: recordatorios;
+    margin-top: 14px;
+  }
+  .ac-acciones {
+    grid-area: acciones;
+  }
+  .ac-mes {
+    grid-area: mes;
+  }
+  .ac-consumo {
+    grid-area: consumo;
+  }
+  .ac-precio {
+    grid-area: precio;
+  }
+  .ac-historial {
+    grid-area: historial;
+  }
+  .ac-ajustes {
+    grid-area: ajustes;
+  }
+  .coche > .coche-bienvenida {
+    grid-column: 1 / -1;
+    max-width: 640px;
   }
 }

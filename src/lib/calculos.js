@@ -710,7 +710,7 @@ export function estadoRecordatorio(rec, kmHoy, kmMes, hoy = hoyISO()) {
   const estado = vencido ? "vencido" : pronto ? "pronto" : "al-dia";
   const nombre = nombreRecordatorio(rec);
   let cuando;
-  if (km != null && km < 0) cuando = `pasado de ${kmTxt(-km)}`;
+  if (km != null && km < 0) cuando = `venció hace ${kmTxt(-km)}`;
   else if (dias != null && dias < 0) cuando = `venció ${plazoTxt(dias)}`;
   else if (km != null && (dias == null || km < 1000 || (diasKm != null && diasKm < dias))) cuando = `en ${kmTxt(km)}`;
   else cuando = plazoTxt(dias);

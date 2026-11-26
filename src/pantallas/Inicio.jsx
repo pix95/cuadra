@@ -1,6 +1,6 @@
-import { ArrowUpRight, ArrowDownLeft, Banknote, Bell, Search, ChevronDown, TrendingUp, TrendingDown, ChevronRight, Scale, Settings, CircleCheck } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Banknote, Bell, Search, ChevronDown, TrendingUp, TrendingDown, ChevronRight, Scale, Settings, CircleCheck, Car } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
-import { resumenMes, recibosMes, recibosNoMensualesMes, alertas, nominaDeHoy, CUENTA_PRINCIPAL } from "../lib/calculos.js";
+import { resumenMes, recibosMes, recibosNoMensualesMes, alertas, nominaDeHoy, avisosCoche, CUENTA_PRINCIPAL } from "../lib/calculos.js";
 import { eur, nombreMes, mesCorto, saludo, pct, moverMes, fechaCorta } from "../lib/formato.js";
 import { Cifra, Sparkline, Vacio } from "../components/comunes.jsx";
 import { Ficha } from "../lib/iconos.jsx";
@@ -58,6 +58,8 @@ export default function Inicio() {
           <PropuestaCierre />
 
           {recibos.length + recibosNM.length > 0 && <TarjetaRecibos recibos={recibos} noMensuales={recibosNM} mesTxt={mesTxt} />}
+
+          <TarjetaCoche db={db} />
         </div>
 
         <section className="seccion col-b">
@@ -143,10 +145,12 @@ function TarjetaSaldo({ r, mesTxt }) {
 
       <div className="saldo-abajo">
         <div className="nomina-bloque">
-          <small className="nomina-mes">
-            {r.sueldo == null ? `Sin nómina en ${mesTxt}` : `Nómina de ${mesTxt}: ${eur(r.sueldo, { corto: true })}`}
-            {r.ingresos ? ` + ${eur(r.ingresos, { corto: true })} extra` : ""}
-          </small>
+          {r.sueldo != null && (
+            <small className="nomina-mes">
+              Nómina de {mesTxt}: {eur(r.sueldo, { corto: true })}
+              {r.ingresos ? ` + ${eur(r.ingresos, { corto: true })} extra` : ""}
+            </small>
+          )}
           <BotonNomina db={db} />
         </div>
         <Sparkline valores={r.serie} />
@@ -174,6 +178,29 @@ function BotonNomina({ db }) {
         <Settings size={18} />
       </button>
     </div>
+  );
+}
+
+// Solo cuando el coche tiene algo pendiente (ITV, revisión, consumo alto…)
+function TarjetaCoche({ db }) {
+  const ui = useUI();
+  const avisos = avisosCoche(db);
+  if (!avisos.length) return null;
+  const a = avisos[0];
+  return (
+    <button type="button" className={`tarjeta coche-inicio nivel-${a.nivel}`} onClick={() => ui.irA("coche")}>
+      <span className="coche-inicio-icono">
+        <Car size={20} />
+      </span>
+      <span className="recibos-txt">
+        <b>{a.recordatorio ? a.recordatorio.texto[0].toUpperCase() + a.recordatorio.texto.slice(1) : "Consumo alto"}</b>
+        <small>
+          {a.vehiculo.nombre}
+          {avisos.length > 1 ? ` · y ${avisos.length - 1} aviso${avisos.length > 2 ? "s" : ""} más` : ""}
+        </small>
+      </span>
+      <ChevronRight size={18} className="tenue" />
+    </button>
   );
 }
 
