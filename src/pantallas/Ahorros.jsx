@@ -227,6 +227,14 @@ export function HojaHucha({ cerrar }) {
   const sig = moverMes(mes, 1);
   const hSig = huchaPeriodicos(db, sig);
   const Mes = mayus(nombreMes(mes));
+  // «Piensa que…»: los cobros de los próximos meses, agrupados por mes
+  const proximos = [];
+  for (const c of hSig.cobros.filter((c) => c.k < 4)) {
+    const g = proximos.find((x) => x.mes === c.mes);
+    if (g) g.cobros.push(c);
+    else proximos.push({ mes: c.mes, cobros: [c] });
+  }
+  const yLista = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
   const explicacion =
     Math.abs(h.estado) < 1
       ? `Con lo que hay y la cuota de cada mes (${eur(h.prorrateo, { corto: true })}), llegas justo a todos los recibos de los próximos 12 meses.`
@@ -281,6 +289,19 @@ export function HojaHucha({ cerrar }) {
             : `En ${nombreMes(mes)} no hace falta apartar nada.`}
         {hSig.sugerida > 0 ? ` En ${nombreMes(sig)} tendrás que apartar ${eur(hSig.sugerida)}.` : ` En ${nombreMes(sig)} no hará falta apartar nada.`}
       </p>
+      {hSig.sugerida > 0 && (proximos.length > 0 || hSig.sinFecha > 0) && (
+        <div className="piensa-que">
+          <b>Piensa que…</b>
+          <ul>
+            {proximos.map((g) => (
+              <li key={g.mes}>
+                En {nombreMes(g.mes)} {g.cobros.length > 1 ? "tocan" : "toca"} {yLista(g.cobros.map((c) => `${c.partida.nombre} (${eur(c.importe, { corto: true })})`))}.
+              </li>
+            ))}
+            {hSig.sinFecha > 0 && <li>Y cada mes {eur(hSig.sinFecha, { corto: true })} para los recibos sin fecha de cobro.</li>}
+          </ul>
+        </div>
+      )}
       <div className="hucha-estado-fila">
         <EstadoHucha estado={h.estado} />
         <p className="ayuda">{explicacion}</p>
