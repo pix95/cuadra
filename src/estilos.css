@@ -1,6 +1,16 @@
 /* Cuadra · tema oscuro con degradado morado → rosa → melocotón */
 
 :root {
+  /* Fondo de las tarjetas destacadas (saldo, Ahorros principales, objetivos) */
+  --fondo-saldo:
+    radial-gradient(70% 85% at 100% 0%, rgba(247, 168, 124, 0.62) 0%, transparent 70%),
+    radial-gradient(80% 110% at 90% 110%, rgba(229, 123, 176, 0.85) 0%, transparent 62%),
+    radial-gradient(70% 90% at 0% 0%, rgba(98, 58, 118, 0.95) 0%, transparent 75%),
+    linear-gradient(150deg, #3d2746 0%, #5c3463 48%, #9c4f7f 100%);
+  --sombra-saldo: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 30px 60px -30px rgba(229, 123, 176, 0.5);
+  --brillo-saldo: radial-gradient(60% 40% at 30% 0%, rgba(255, 255, 255, 0.1), transparent 70%);
+  /* Texto secundario sobre el degradado */
+  --texto-sobre-degradado: rgba(255, 255, 255, 0.78);
   --fondo: #0d090f;
   --tarjeta: #18111b;
   --tarjeta-2: #211825;
@@ -538,25 +548,64 @@ a {
   overflow: hidden;
   border-radius: 30px;
   padding: 20px 22px 18px;
-  background:
-    radial-gradient(70% 85% at 100% 0%, rgba(247, 168, 124, 0.62) 0%, transparent 70%),
-    radial-gradient(80% 110% at 90% 110%, rgba(229, 123, 176, 0.85) 0%, transparent 62%),
-    radial-gradient(70% 90% at 0% 0%, rgba(98, 58, 118, 0.95) 0%, transparent 75%),
-    linear-gradient(150deg, #3d2746 0%, #5c3463 48%, #9c4f7f 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 30px 60px -30px rgba(229, 123, 176, 0.5);
+  background: var(--fondo-saldo);
+  box-shadow: var(--sombra-saldo);
 }
 .saldo::after,
-.sim-resultado::after {
+.sim-resultado::after,
+.fondo-degradado::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(60% 40% at 30% 0%, rgba(255, 255, 255, 0.1), transparent 70%);
+  background: var(--brillo-saldo);
 }
 .saldo > *,
-.sim-resultado > * {
+.sim-resultado > *,
+.fondo-degradado > * {
   position: relative;
   z-index: 1;
+}
+
+/* Tarjetas de objetivos con el mismo fondo, pero con menos sombra para que
+   «Ahorros principales» siga siendo la que destaca */
+.tarjeta.fondo-degradado {
+  position: relative;
+  overflow: hidden;
+  background: var(--fondo-saldo);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 16px 32px -24px rgba(229, 123, 176, 0.45);
+}
+.fondo-degradado .objetivo-txt small,
+.fondo-degradado .objetivo-pct small,
+.fondo-degradado .objetivo-fijo-saldo small,
+.fondo-degradado .objetivo-fijo-pie {
+  color: var(--texto-sobre-degradado);
+}
+.fondo-degradado .objetivo-pct i {
+  color: #ffd2bb;
+}
+.fondo-degradado .ficha,
+.fondo-degradado .hucha-icono {
+  background: rgba(20, 10, 24, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: #ffc7a8;
+}
+.fondo-degradado .rayas i {
+  background: rgba(255, 255, 255, 0.18);
+}
+.fondo-degradado .rayas i.llena {
+  background: var(--lima);
+}
+/* El saldo en negativo, dentro de una pastilla oscura para que se lea */
+.fondo-degradado .negativo {
+  background: rgba(20, 10, 24, 0.6);
+  color: #ff98a8;
+  padding: 1px 9px;
+  border-radius: 999px;
+}
+button.tarjeta.fondo-degradado:hover {
+  border-color: rgba(255, 255, 255, 0.22);
 }
 .saldo-arriba {
   display: flex;
@@ -573,6 +622,26 @@ a {
   font-size: 54px;
   margin: 6px 0 10px;
   line-height: 1.05;
+}
+.saldo-desglose {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: -4px 0 12px;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.82);
+  font-variant-numeric: tabular-nums;
+}
+.saldo-cuadrar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: underline dotted rgba(255, 255, 255, 0.45);
+  text-underline-offset: 3px;
 }
 .saldo-pill-fila {
   display: flex;
@@ -1828,6 +1897,25 @@ button.recibo-ok:active {
   justify-content: center;
   gap: 8px;
 }
+.pago-hucha {
+  width: 100%;
+  max-width: 380px;
+}
+.pago-hucha .interruptor {
+  margin-top: 6px;
+  padding: 10px 14px;
+  text-align: left;
+}
+.pago-hucha-reparto {
+  margin-top: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--texto-2);
+  font-variant-numeric: tabular-nums;
+}
+.pago-hucha-reparto.falta {
+  color: var(--ambar);
+}
 .apuntar-nota {
   max-width: 340px;
   text-align: center;
@@ -2640,6 +2728,70 @@ button.recibo-ok:active {
 }
 .hucha-fila {
   cursor: default;
+}
+.objetivo-fijo.fondo-degradado {
+  flex-direction: column;
+  align-items: stretch;
+}
+.objetivo-fijo-fila {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.objetivo-fijo-pie {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: 12.5px;
+}
+.estado-hucha {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  background: rgba(20, 10, 24, 0.55);
+}
+.estado-hucha.adelantado,
+.estado-hucha.al-dia {
+  color: var(--lima);
+}
+.estado-hucha.detras {
+  color: #ff98a8;
+}
+.hucha-estado-fila {
+  margin: 12px 0 4px;
+}
+.cobro {
+  display: grid;
+  grid-template-columns: 74px 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--linea);
+  font-variant-numeric: tabular-nums;
+}
+.cobro:last-child {
+  border-bottom: 0;
+}
+.cobro-mes {
+  color: var(--texto-2);
+  font-size: 13.5px;
+}
+.cobro-nombre {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ahorro-cuadrar {
+  margin-top: 12px;
 }
 .objetivo-fijo {
   display: flex !important;

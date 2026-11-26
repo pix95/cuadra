@@ -1,8 +1,8 @@
 // Ahorros: lo que tienes apartado y tus objetivos
-import { Plus, ArrowDownToLine, CalendarClock } from "lucide-react";
+import { Plus, ArrowDownToLine, CalendarClock, Scale, TrendingUp, TrendingDown } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
 import { ahorradoObjetivo, ahorrosPrincipales, resumenCuentas, resumenMes, evolucionAhorro, huchaPeriodicos, primerMes, OBJETIVO_FIJO, AHORRO_PRINCIPAL } from "../lib/calculos.js";
-import { eur, nombreMes, mayus, MESES, MESES_CORTOS, r2, sum, mesActual, moverMes } from "../lib/formato.js";
+import { eur, nombreMes, mayus, MESES, MESES_CORTOS, r2, sum, mesActual, moverMes, mesCorto } from "../lib/formato.js";
 import { Cifra, BarraRayas, Hoja } from "../components/comunes.jsx";
 import { Ficha } from "../lib/iconos.jsx";
 import { GraficoBarras } from "../components/GraficoBarras.jsx";
@@ -46,6 +46,9 @@ export default function Ahorros() {
           <span className={`pill ${esteMes > 0 ? "pill-lima" : ""}`}>{eur(esteMes, { signo: true, corto: true })}</span>
           <span className="saldo-nota">apartado en {nombreMes(ui.mes)}</span>
         </div>
+        <button type="button" className="saldo-cuadrar ahorro-cuadrar" onClick={() => ui.abrir("cuadrar", { cuenta: AHORRO_PRINCIPAL.id })}>
+          <Scale size={12} /> Cuadrar con el banco
+        </button>
       </section>
 
       {/* Por defecto va a Ahorros principales; ahí se puede elegir otro destino */}
@@ -64,7 +67,7 @@ export default function Ahorros() {
             const p = o.meta > 0 ? (ahorrado / o.meta) * 100 : 0;
             const fecha = o.fecha ? ` · ${mayus(MESES_CORTOS[Number(o.fecha.slice(5)) - 1])} ${o.fecha.slice(0, 4)}` : "";
             return (
-              <button type="button" key={o.id} className="tarjeta objetivo" onClick={() => ui.abrir("objetivo", { objetivo: o })}>
+              <button type="button" key={o.id} className="tarjeta objetivo fondo-degradado" onClick={() => ui.abrir("objetivo", { objetivo: o })}>
                 <div className="objetivo-cab">
                   <Ficha icono={o.icono} color="#f6a57c" size={42} />
                   <span className="objetivo-txt">
@@ -109,20 +112,18 @@ export default function Ahorros() {
         </small>
       </div>
 
-      {/* Ahorros + lo que te queda en la cuenta este mes */}
+      {/* Ahorros + lo que hay en la cuenta principal */}
       <div className="tarjeta entre-cuentas todo-tu-dinero area-todo">
         <div className="entre-cuentas-cab">
           <span>Todo tu dinero</span>
-          <b>{eur(cuentas.total + cuenta.disponible)}</b>
+          <b>{eur(cuentas.total + cuenta.saldoCuenta)}</b>
         </div>
         <small>
-          Ahorros {eur(cuentas.total, { corto: true })} · Cuenta principal {eur(cuenta.disponible, { corto: true })} (te queda en {nombreMes(cuenta.mes)})
+          Ahorros {eur(cuentas.total, { corto: true })} · Cuenta principal {eur(cuenta.saldoCuenta, { corto: true })}
         </small>
       </div>
 
       <Evolucion />
-
-
     </div>
   );
 }
@@ -162,26 +163,54 @@ function Evolucion() {
   );
 }
 
-// Objetivo fijo para los pagos que no son mensuales (IBI, comunidad, agua…).
-// Tú decides cada mes cuánto apartas.
+// Indicador de la hucha: al día, adelantado o por detrás
+function EstadoHucha({ estado }) {
+  if (Math.abs(estado) < 1) return <span className="estado-hucha al-dia">Al día</span>;
+  return estado > 0 ? (
+    <span className="estado-hucha adelantado">
+      <TrendingUp size={13} /> Vas {eur(estado, { corto: true })} adelantado
+    </span>
+  ) : (
+    <span className="estado-hucha detras">
+      <TrendingDown size={13} /> Vas {eur(-estado, { corto: true })} por detrás
+    </span>
+  );
+}
+
+// Objetivo fijo para los recibos que no son mensuales (IBI, comunidad, agua…).
+// Tú decides cada mes cuánto apartas; al pagar uno de esos recibos sale de aquí.
 function ObjetivoFijo() {
   const ui = useUI();
   const { db } = useDatos();
   const h = huchaPeriodicos(db);
-  const bien = h.saldo >= 0;
+  const falta = r2(Math.max(0, h.sugerida - h.apartadoMes));
   return (
-    <button type="button" className="tarjeta objetivo-fijo" onClick={() => ui.abrir("hucha")}>
-      <span className="cierre-icono hucha-icono">
-        <CalendarClock size={20} />
-      </span>
-      <span className="objetivo-txt">
-        <b>Recibos no mensuales</b>
-        <small>Fijo · para IBI, comunidad, agua…</small>
-      </span>
-      <span className="objetivo-fijo-saldo">
-        <b className={bien ? "" : "negativo"}>{eur(h.saldo, { corto: true })}</b>
-        <small>en la hucha</small>
-      </span>
+    <button type="button" className="tarjeta objetivo-fijo fondo-degradado" onClick={() => ui.abrir("hucha")}>
+      <div className="objetivo-fijo-fila">
+        <span className="cierre-icono hucha-icono">
+          <CalendarClock size={20} />
+        </span>
+        <span className="objetivo-txt">
+          <b>Recibos no mensuales</b>
+          <small>
+            {falta > 0 ? `Este mes aparta ${eur(falta, { corto: true })}` : h.sugerida > 0 ? "Este mes ya está apartado" : "Fijo · para IBI, comunidad, agua…"}
+          </small>
+        </span>
+        <span className="objetivo-fijo-saldo">
+          <b className={h.saldo < 0 ? "negativo" : ""}>{eur(h.saldo, { corto: true })}</b>
+          <small>en la hucha</small>
+        </span>
+      </div>
+      {(h.cobros.length > 0 || h.sugerida > 0) && (
+        <div className="objetivo-fijo-pie">
+          <EstadoHucha estado={h.estado} />
+          {h.proximo && (
+            <span>
+              Próximo: {h.proximo.partida.nombre} · {mesCorto(h.proximo.mes).toLowerCase()} · {eur(h.proximo.importe, { corto: true })}
+            </span>
+          )}
+        </div>
+      )}
     </button>
   );
 }
@@ -190,31 +219,79 @@ export function HojaHucha({ cerrar }) {
   const { db } = useDatos();
   const ui = useUI();
   const h = huchaPeriodicos(db);
+  const falta = r2(Math.max(0, h.sugerida - h.apartadoMes));
   return (
     <Hoja
       titulo="Recibos no mensuales"
-      subtitulo="Objetivo fijo para los recibos que no llegan cada mes (IBI, comunidad, agua…). Tú decides cada mes cuánto apartas."
+      subtitulo="Hucha para los recibos que no llegan cada mes (IBI, comunidad, agua…). Tú decides cuánto apartas; al pagar uno de esos recibos, el dinero sale de aquí."
       onCerrar={cerrar}
       pie={
-        <button
-          type="button"
-          className="btn btn-primario"
-          onClick={() => {
-            cerrar();
-            ui.abrir("apuntar", { tipo: "ahorro", objetivoId: OBJETIVO_FIJO.id });
-          }}
-        >
-          <ArrowDownToLine size={16} /> Apartar
-        </button>
+        <>
+          <button
+            type="button"
+            className="btn btn-texto"
+            onClick={() => {
+              cerrar();
+              ui.abrir("cuadrar", { cuenta: OBJETIVO_FIJO.id });
+            }}
+          >
+            <Scale size={16} /> Cuadrar
+          </button>
+          <button
+            type="button"
+            className="btn btn-primario"
+            onClick={() => {
+              cerrar();
+              ui.abrir("apuntar", { tipo: "ahorro", objetivoId: OBJETIVO_FIJO.id, importe: falta || undefined });
+            }}
+          >
+            <ArrowDownToLine size={16} /> Apartar{falta > 0 ? ` ${eur(falta, { corto: true })}` : ""}
+          </button>
+        </>
       }
     >
       <dl className="cuadre">
         <dt className="total">En la hucha</dt>
         <dd className={`total ${h.saldo < 0 ? "negativo" : "positivo"}`}>{eur(h.saldo)}</dd>
+        <dt>Te toca apartar este mes</dt>
+        <dd>{eur(h.sugerida)}</dd>
+        <dt>Llevas apartado este mes</dt>
+        <dd>{eur(h.apartadoMes)}</dd>
       </dl>
-      <p className="ayuda" style={{ marginTop: 12 }}>
-        Para cubrirlos todos te tocaría apartar unos <b>{eur(h.alMes)} al mes</b>.
+      <p className="hucha-estado-fila">
+        <EstadoHucha estado={h.estado} />
       </p>
+      {h.proximo && (
+        <p className={`aviso-linea ${h.proximo.cubierto ? "ok" : ""}`}>
+          Próximo cobro: {h.proximo.partida.nombre}, {eur(h.proximo.importe)} en {nombreMes(h.proximo.mes, { año: true })}.{" "}
+          {h.proximo.cubierto ? "La hucha llega." : "Si solo apartas lo normal, la hucha no llega: aparta lo que te toca este mes."}
+        </p>
+      )}
+      {h.cobros.length > 0 ? (
+        <>
+          <h3 className="hoja-sub-titulo">
+            <CalendarClock size={16} /> Próximos 12 meses
+          </h3>
+          <div className="lista">
+            {h.cobros.map((c) => (
+              <div key={`${c.mes}-${c.partida.id}`} className="cobro">
+                <span className="cobro-mes">{mesCorto(c.mes, { año: true })}</span>
+                <span className="cobro-nombre">{c.partida.nombre}</span>
+                <b>{eur(c.importe)}</b>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="ayuda" style={{ marginTop: 12 }}>
+          Ningún recibo no mensual tiene fecha de cobro. Ponla en Presupuesto («Próximo cobro») para que la hucha sepa cuándo tiene que tenerlo.
+        </p>
+      )}
+      {h.sinFecha > 0 && (
+        <p className="ayuda tenue" style={{ marginTop: 10 }}>
+          Los recibos sin fecha suman {eur(h.sinFecha)} al mes a la sugerencia (su parte proporcional).
+        </p>
+      )}
     </Hoja>
   );
 }
