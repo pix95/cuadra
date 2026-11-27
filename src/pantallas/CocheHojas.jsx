@@ -44,7 +44,7 @@ export function HojaVehiculo({ vehiculo = null, asistente = false, cerrar }) {
   const activas = db.partidas.filter((p) => p.activa);
   const busca = (re) => activas.find((p) => re.test(p.nombre))?.id;
   const [f, setF] = useState(() => ({
-    nombre: vehiculo?.nombre || "Mi coche",
+    nombre: vehiculo?.nombre || (db.vehiculos.length ? "" : "Mi coche"),
     combustible: vehiculo?.combustible || "gasolina",
     km: vehiculo ? kmInput(vehiculo.kmIniciales) : "",
     partidaCombustible: vehiculo ? vehiculo.partidaCombustible || "" : busca(/gasolina|combustible|gasóleo|gasoil|carburante/i) || NUEVA,
@@ -66,10 +66,11 @@ export function HojaVehiculo({ vehiculo = null, asistente = false, cerrar }) {
     try {
       const partidaCombustible = await crearSiHaceFalta(f.partidaCombustible, { nombre: f.combustible === "electrico" ? "Recarga coche" : "Gasolina", icono: "gasolina" });
       const partidaMantenimiento = await crearSiHaceFalta(f.partidaMantenimiento, { nombre: "Mantenimiento coche", icono: "taller", frecuencia: "Anual" });
-      await acc.guardarVehiculo({ ...(vehiculo || {}), nombre: f.nombre, combustible: f.combustible, kmIniciales: km, partidaCombustible, partidaMantenimiento });
+      const nombre = f.nombre.trim() || (db.vehiculos.length ? `Vehículo ${db.vehiculos.length + 1}` : "Mi coche");
+      const guardado = await acc.guardarVehiculo({ ...(vehiculo || {}), nombre, combustible: f.combustible, kmIniciales: km, partidaCombustible, partidaMantenimiento });
       cerrar();
       ui.avisar(vehiculo ? "Coche guardado" : `¡Listo! Ya puedes repostar con ${f.nombre.trim() || "tu coche"}`);
-      if (!vehiculo) ui.irA("coche");
+      if (!vehiculo) ui.irA("coche", {}, guardado?.id);
     } catch (e) {
       setError(e.message);
     }
@@ -88,7 +89,7 @@ export function HojaVehiculo({ vehiculo = null, asistente = false, cerrar }) {
 
   return (
     <Hoja
-      titulo={vehiculo ? "Ajustes del coche" : "Tu coche"}
+      titulo={vehiculo ? `Ajustes de ${vehiculo.nombre}` : db.vehiculos.length ? "Otro vehículo" : "Tu coche"}
       subtitulo={
         vehiculo
           ? "Nombre, combustible y en qué partidas de Cuadra se apuntan sus gastos."
@@ -110,7 +111,7 @@ export function HojaVehiculo({ vehiculo = null, asistente = false, cerrar }) {
     >
       <label className="campo">
         <span>Nombre</span>
-        <input value={f.nombre} maxLength={40} onChange={(e) => set("nombre")(e.target.value)} placeholder="Mi coche" autoFocus={asistente} />
+        <input value={f.nombre} maxLength={40} onChange={(e) => set("nombre")(e.target.value)} placeholder={db.vehiculos.length ? "Ej.: La moto, el coche de casa…" : "Mi coche"} autoFocus={asistente} />
       </label>
       <div className="campo">
         <span>Combustible</span>

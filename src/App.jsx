@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { House, ReceiptText, Wallet, Wrench, RotateCcw } from "lucide-react";
 import { Segmentado } from "./components/comunes.jsx";
 import Coche from "./pantallas/Coche.jsx";
+import Areas from "./pantallas/Areas.jsx";
 import { HojaVehiculo, HojaRepostaje, HojaMantenimiento, HojaRecordatorio } from "./pantallas/CocheHojas.jsx";
 import { useDatos, useUI, UIProvider } from "./store.jsx";
 import { mesEnCurso } from "./lib/calculos.js";
@@ -17,7 +18,7 @@ import Acceso from "./pantallas/Acceso.jsx";
 import { HojaNomina, HojaConfigNomina } from "./pantallas/Nomina.jsx";
 import { HojaEmpezarDeCero, HojaCuadrar, HojaAjuste, HojaCierre, HojaSueldo, HojaPartida, HojaObjetivo, HojaAlertas, HojaRecibos, HojaAjustes, HojaElegirPartida, HojaMeses, HojaConfirmar } from "./pantallas/Hojas.jsx";
 
-const PANTALLAS = { inicio: Inicio, movimientos: Movimientos, analisis: Analisis, presupuesto: Presupuesto, ahorros: Ahorros, simulador: Simulador, coche: Coche };
+const PANTALLAS = { inicio: Inicio, movimientos: Movimientos, analisis: Analisis, presupuesto: Presupuesto, ahorros: Ahorros, simulador: Simulador, coche: Coche, areas: Areas };
 const CAPAS = {
   apuntar: Apuntar,
   sueldo: HojaSueldo,
@@ -47,9 +48,11 @@ const PESTAÑAS = [
   { id: "inicio", texto: "Inicio", Icono: House, vistas: [["inicio", "Inicio"]] },
   { id: "dinero", texto: "Mi dinero", Icono: Wallet, vistas: [["presupuesto", "Presupuesto"], ["ahorros", "Ahorros"]] },
   { id: "movs", texto: "Movimientos", Icono: ReceiptText, vistas: [["movimientos", "Historial"], ["analisis", "Análisis"]] },
-  { id: "herramientas", texto: "Herramientas", Icono: Wrench, vistas: [["coche", "Coche"], ["simulador", "Simular"]] },
+  // El coche se abre dentro de Áreas (Transporte)
+  { id: "herramientas", texto: "Herramientas", Icono: Wrench, vistas: [["areas", "Áreas"], ["simulador", "Simular"]], alias: { coche: "areas" } },
 ];
-const pestañaDe = (vista) => PESTAÑAS.find((p) => p.vistas.some(([v]) => v === vista)) || PESTAÑAS[0];
+const pestañaDe = (vista) => PESTAÑAS.find((p) => p.vistas.some(([v]) => v === vista) || p.alias?.[vista]) || PESTAÑAS[0];
+const vistaDePestaña = (p, vista) => p.alias?.[vista] || vista;
 // La última pantalla abierta de cada pestaña
 function ultimaVista(p) {
   try {
@@ -64,7 +67,7 @@ function recordarVista(vista) {
   const p = pestañaDe(vista);
   if (p.vistas.length < 2) return;
   try {
-    localStorage.setItem(`cuadra:pestaña:${p.id}`, vista);
+    localStorage.setItem(`cuadra:pestaña:${p.id}`, vistaDePestaña(p, vista));
   } catch {
     /* sin almacenamiento */
   }
@@ -160,10 +163,10 @@ function Marco() {
 
   return (
     <div className="marco">
-      <main className="pantalla" key={ui.vista} aria-hidden={ui.capas.length > 0 || undefined}>
+      <main className="pantalla" key={`${ui.vista}/${ui.sub || ""}`} aria-hidden={ui.capas.length > 0 || undefined}>
         {pestaña.vistas.length > 1 && (
           <div className="selector-pestaña">
-            <Segmentado peq etiqueta={pestaña.texto} valor={ui.vista} onCambio={(v) => ui.irA(v)} opciones={pestaña.vistas.map(([valor, texto]) => ({ valor, texto }))} />
+            <Segmentado peq etiqueta={pestaña.texto} valor={vistaDePestaña(pestaña, ui.vista)} onCambio={(v) => ui.irA(v)} opciones={pestaña.vistas.map(([valor, texto]) => ({ valor, texto }))} />
           </div>
         )}
         <Pantalla />
@@ -182,7 +185,7 @@ function Marco() {
             type="button"
             className="nav-item"
             aria-current={pestaña.id === id ? "page" : undefined}
-            onClick={() => ui.irA(pestaña.id === id ? ui.vista : ultimaVista(p))}
+            onClick={() => ui.irA(pestaña.id === id ? vistaDePestaña(p, ui.vista) : ultimaVista(p))}
             aria-label={texto}
             title={texto}
           >

@@ -192,7 +192,7 @@ function TarjetaCoche({ db }) {
   if (!avisos.length) return null;
   const a = avisos[0];
   return (
-    <button type="button" className={`tarjeta coche-inicio nivel-${a.nivel}`} onClick={() => ui.irA("coche")}>
+    <button type="button" className={`tarjeta coche-inicio nivel-${a.nivel}`} onClick={() => ui.irA("coche", {}, a.vehiculo.id)}>
       <span className="coche-inicio-icono">
         <Car size={20} />
       </span>

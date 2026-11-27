@@ -70,7 +70,10 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
   const mesCuenta = mesParaFecha(db, fecha, mesElegido);
   const verMesCuenta = Boolean(ingSig) || mesCuenta !== mesFecha;
   const partida = db.partidas.find((p) => p.id === partidaId);
-  const vehiculo = tipo === "gasto" && !negativo ? vehiculoDeCombustible(db, partidaId) : null;
+  // Vehículos que repostan en esta partida (si hay varios, se elige cuál)
+  const vehiculosComb = tipo === "gasto" && !negativo && partidaId ? (db.vehiculos || []).filter((v) => v.partidaCombustible === partidaId) : [];
+  const [vehiculoId, setVehiculoId] = useState(repVinculado?.vehiculoId || null);
+  const vehiculo = vehiculosComb.find((v) => v.id === vehiculoId) || vehiculosComb[0] || null;
   const objetivo = objetivosConFijo(db).find((o) => o.id === objetivoId);
   const importe = valorTeclado(valor);
 
@@ -417,6 +420,15 @@ export default function Apuntar({ cerrar, tipo: tipoInicial = "gasto", movimient
               <span className="apuntar-repostaje-tit">
                 <Fuel size={14} /> Repostaje de {vehiculo.nombre} <small>(opcional)</small>
               </span>
+              {vehiculosComb.length > 1 && (
+                <div className="chips apuntar-vehiculos">
+                  {vehiculosComb.map((v) => (
+                    <button key={v.id} type="button" className="chip" aria-pressed={v.id === vehiculo.id} onClick={() => setVehiculoId(v.id)}>
+                      {v.nombre}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="apuntar-repostaje-campos">
                 <input inputMode="decimal" aria-label="Litros" placeholder={vehiculo.combustible === "electrico" ? "kWh" : "Litros"} value={rep.litros} onChange={(e) => setRep((x) => ({ ...x, litros: e.target.value }))} />
                 <input inputMode="numeric" aria-label="Km del cuentakilómetros" placeholder={`Km (≈ ${kmEstimados(db, vehiculo).toLocaleString("es-ES")})`} value={rep.km} onChange={(e) => setRep((x) => ({ ...x, km: e.target.value.replace(/[^\d.]/g, "") }))} />

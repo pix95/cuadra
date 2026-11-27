@@ -25,15 +25,24 @@ export function DatosProvider({ children }) {
 
 export const useDatos = () => useContext(DatosCtx);
 
-const VISTAS = ["inicio", "movimientos", "analisis", "presupuesto", "ahorros", "simulador", "coche"];
-const vistaDeHash = () => {
-  const v = location.hash.replace(/^#\/?/, "");
-  return VISTAS.includes(v) ? v : "inicio";
+const VISTAS = ["inicio", "movimientos", "analisis", "presupuesto", "ahorros", "simulador", "coche", "areas"];
+// "#/areas/Vivienda" → vista "areas" con sub "Vivienda"; "#/coche/<id>" → ese vehículo
+const leerHash = () => {
+  const [v, ...resto] = location.hash.replace(/^#\/?/, "").split("/");
+  if (!VISTAS.includes(v)) return { vista: "inicio", sub: null };
+  let sub = null;
+  try {
+    sub = resto.length && resto.join("/") ? decodeURIComponent(resto.join("/")) : null;
+  } catch {
+    sub = null;
+  }
+  return { vista: v, sub };
 };
 
 export function UIProvider({ children }) {
   const { db } = useContext(DatosCtx);
-  const [vista, setVista] = useState(vistaDeHash);
+  const [ruta, setRuta] = useState(leerHash);
+  const { vista, sub } = ruta;
   // Al abrir, el mes que estás viviendo (diciembre el 30 de noviembre si ya has ingresado su nómina)
   const [mes, setMes] = useState(() => mesEnCurso(db));
   const [capas, setCapas] = useState([]); // ventanas abiertas, la última encima
@@ -44,17 +53,19 @@ export function UIProvider({ children }) {
 
   useEffect(() => {
     const f = () => {
-      setVista(vistaDeHash());
+      setRuta(leerHash());
       window.scrollTo(0, 0);
     };
     window.addEventListener("hashchange", f);
     return () => window.removeEventListener("hashchange", f);
   }, []);
 
-  const irA = useCallback((v, datos = {}) => {
+  // irA("areas", {}, "Vivienda") abre la página de un área (o de un vehículo, con "coche")
+  const irA = useCallback((v, datos = {}, subRuta = null) => {
     setExtra(datos);
-    if (location.hash !== `#/${v}`) location.hash = `/${v}`;
-    setVista(v);
+    const h = `/${v}${subRuta ? `/${encodeURIComponent(subRuta)}` : ""}`;
+    if (location.hash !== `#${h}`) location.hash = h;
+    setRuta({ vista: v, sub: subRuta });
     window.scrollTo(0, 0);
   }, []);
 
@@ -69,8 +80,8 @@ export function UIProvider({ children }) {
   const quitarAviso = useCallback(() => setAviso(null), []);
 
   const valor = useMemo(
-    () => ({ vista, irA, mes, setMes, capas, abrir, cerrar, aviso, avisar, quitarAviso, extra }),
-    [vista, irA, mes, capas, abrir, cerrar, aviso, avisar, quitarAviso, extra]
+    () => ({ vista, sub, irA, mes, setMes, capas, abrir, cerrar, aviso, avisar, quitarAviso, extra }),
+    [vista, sub, irA, mes, capas, abrir, cerrar, aviso, avisar, quitarAviso, extra]
   );
   return <UICtx.Provider value={valor}>{children}</UICtx.Provider>;
 }

@@ -1,12 +1,12 @@
 // Cuaderno del coche: lo que cuesta, recordatorios, consumo, precio del
 // combustible e historial de repostajes y mantenimientos.
 import { useState } from "react";
-import { Fuel, Wrench, Settings, Plus, ChevronRight, TriangleAlert, Car, Gauge } from "lucide-react";
+import { Fuel, Wrench, Settings, Plus, ChevronRight, ChevronLeft, TriangleAlert, Car, Gauge } from "lucide-react";
 import { useDatos, useUI } from "../store.jsx";
 import { Cifra, Segmentado, Vacio, Barra } from "../components/comunes.jsx";
 import { GraficoBarras } from "../components/GraficoBarras.jsx";
 import { Ficha } from "../lib/iconos.jsx";
-import { resumenCoche, vehiculoPrincipal, precioLitro, porcentaje, estadoDe, mesEnCurso } from "../lib/calculos.js";
+import { resumenCoche, vehiculoPrincipal, precioLitro, porcentaje, estadoDe, mesEnCurso, categoriaVehiculo } from "../lib/calculos.js";
 import { COMBUSTIBLES, TIPOS_MANTENIMIENTO } from "../../shared/modelo.js";
 import { eur, fechaCorta, fechaRelativa, nombreMes, mayus } from "../lib/formato.js";
 
@@ -20,8 +20,9 @@ const ESTADO_REC = { vencido: "Vencido", pronto: "Pronto", "al-dia": "Al día" }
 export default function Coche() {
   const { db } = useDatos();
   const ui = useUI();
-  const v = vehiculoPrincipal(db);
+  const v = (ui.sub && db.vehiculos.find((x) => x.id === ui.sub)) || vehiculoPrincipal(db);
   if (!v) return <Bienvenida />;
+  const area = categoriaVehiculo(db, v);
 
   const res = resumenCoche(db, v);
   const u = unidad(v);
@@ -29,9 +30,12 @@ export default function Coche() {
 
   return (
     <div className="coche">
+      <button type="button" className="volver" onClick={() => ui.irA("areas", {}, area)}>
+        <ChevronLeft size={16} /> {area}
+      </button>
       <header className="titular">
         <h1>
-          <em>Tu</em> coche
+          <em>{db.vehiculos.length > 1 ? v.nombre : "Tu coche"}</em>
         </h1>
         <button type="button" className="boton-redondo" onClick={() => ui.abrir("vehiculo", { vehiculo: v })} aria-label="Ajustes del vehículo">
           <Settings size={20} />

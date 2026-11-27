@@ -531,7 +531,7 @@ export function HojaAlertas({ cerrar }) {
     cerrar();
     if (a.tipo === "nomina") ui.abrir("nomina", { mes: a.mes });
     else if (a.tipo === "recibos") ui.abrir("recibos", { mes: ui.mes });
-    else if (a.tipo === "coche") ui.irA("coche");
+    else if (a.tipo === "coche") ui.irA("coche", {}, a.vehiculo?.id);
     else ui.irA("analisis");
   }
   return (
