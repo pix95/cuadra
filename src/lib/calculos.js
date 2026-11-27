@@ -839,3 +839,93 @@ export function avisosCoche(db, hoy = hoyISO()) {
   }
   return out;
 }
+
+// ---------- Áreas: una por categoría del presupuesto ----------
+// Categoría de un vehículo: la de su partida de combustible (o de mantenimiento);
+// sin partidas, «Transporte».
+export function categoriaVehiculo(db, v) {
+  const p = db.partidas.find((x) => x.id === v.partidaCombustible) || db.partidas.find((x) => x.id === v.partidaMantenimiento);
+  return p?.categoria || "Transporte";
+}
+export const vehiculosDeArea = (db, cat) => (db.vehiculos || []).filter((v) => categoriaVehiculo(db, v) === cat);
+// ¿Es el área de los vehículos? (la de alguno, o una que se llame «Transporte»)
+export const esAreaDeVehiculos = (db, cat) => vehiculosDeArea(db, cat).length > 0 || /transporte/i.test(cat);
+
+// Todo lo de un área en un mes: lo gastado frente al presupuesto (las partidas
+// mensuales por un lado y los recibos no mensuales, que se pagan de la hucha,
+// por otro), la evolución de 12 meses, la media de los meses cerrados, cada
+// partida, los próximos recibos, los últimos gastos y un aviso si hace falta.
+export function resumenArea(db, cat, mes, hoy = hoyISO()) {
+  const partidas = ordenar(db.partidas.filter((p) => p.activa && p.categoria === cat));
+  const ids = new Set(db.partidas.filter((p) => p.categoria === cat).map((p) => p.id));
+  const mensual = new Set(db.partidas.filter((p) => p.categoria === cat && esMensual(p)).map((p) => p.id));
+  const gastos = db.movimientos.filter((m) => m.tipo === "gasto" && ids.has(m.partidaId));
+  const total = new Map();
+  const soloMensual = new Map();
+  for (const m of gastos) {
+    const k = mesDe(m);
+    total.set(k, (total.get(k) || 0) + m.importe);
+    if (mensual.has(m.partidaId)) soloMensual.set(k, (soloMensual.get(k) || 0) + m.importe);
+  }
+  const presupuestoMensual = r2(sum(partidas.filter(esMensual), (p) => p.importe));
+  const noMensuales = partidas.filter((p) => !esMensual(p));
+  const presupuesto = r2(sum(partidas, previstoMes));
+  const gastado = r2(total.get(mes) || 0);
+  const gastadoMensual = r2(soloMensual.get(mes) || 0);
+
+  const serie = [];
+  for (let i = 11; i >= 0; i--) {
+    const m = moverMes(mes, -i);
+    serie.push({ mes: m, gastado: r2(total.get(m) || 0) });
+  }
+  // Media de hasta 6 meses ya cerrados (antes del mes en curso) desde que hay datos
+  const enCurso = mesEnCurso(db, hoy);
+  const inicio = primerMes(db, hoy);
+  const cerrados = [];
+  for (let m = moverMes(enCurso, -1); cerrados.length < 6 && m >= inicio; m = moverMes(m, -1)) cerrados.push(m);
+  const media = cerrados.length ? r2(sum(cerrados, (m) => total.get(m) || 0) / cerrados.length) : null;
+  const mediaMensual = cerrados.length ? r2(sum(cerrados, (m) => soloMensual.get(m) || 0) / cerrados.length) : null;
+  // Consejo: con 3 meses cerrados o más, si lo mensual se aleja del presupuesto
+  let consejo = null;
+  if (cerrados.length >= 3 && presupuestoMensual > 0 && mediaMensual != null) {
+    const dif = r2(mediaMensual - presupuestoMensual);
+    if (dif <= -Math.max(10, presupuestoMensual * 0.15)) consejo = { tipo: "bajar", dif, meses: cerrados.length };
+    else if (dif >= Math.max(10, presupuestoMensual * 0.1)) consejo = { tipo: "subir", dif, meses: cerrados.length };
+  }
+
+  const porPartida = partidas.map((p) => {
+    const g = r2(sum(gastos.filter((m) => m.partidaId === p.id && mesDe(m) === mes), (m) => m.importe));
+    return { partida: p, gastado: g, estado: esMensual(p) ? estadoDe(g, p.importe) : null, proximo: esMensual(p) ? null : proximosCobros(p, mes, 1)[0] || null };
+  });
+  const proximos = calendarioCobros(db, mes, 12).filter((c) => c.partida.categoria === cat);
+  const ultimos = [...gastos].sort((a, b) => b.fecha.localeCompare(a.fecha) || String(b.creado || "").localeCompare(String(a.creado || ""))).slice(0, 8);
+  const vehiculos = vehiculosDeArea(db, cat);
+
+  // Aviso del área: el del coche, una partida pasada o el próximo recibo cercano
+  let aviso = null;
+  const delCoche = avisosCoche(db, hoy).filter((a) => vehiculos.some((v) => v.id === a.vehiculo.id));
+  const pasadas = porPartida.filter((x) => x.estado === "pasado");
+  const cercano = proximos.find((c) => c.k <= 2);
+  if (delCoche.length) aviso = { nivel: delCoche[0].nivel, texto: delCoche[0].recordatorio ? delCoche[0].recordatorio.texto : "Consumo alto" };
+  else if (pasadas.length) aviso = { nivel: "mal", texto: `Te pasas en ${pasadas[0].partida.nombre}` };
+  else if (cercano) aviso = { nivel: "info", texto: `${cercano.partida.nombre} en ${cercano.k === 0 ? "este mes" : NOMBRE_MES[Number(cercano.mes.slice(5)) - 1]}` };
+
+  return {
+    categoria: cat, partidas, presupuesto, presupuestoMensual, noMensuales, gastado, gastadoMensual,
+    estado: estadoDe(gastadoMensual, presupuestoMensual), serie, media, mediaMensual, consejo,
+    anterior: r2(total.get(moverMes(mes, -1)) || 0), porPartida, proximos, ultimos, vehiculos, aviso,
+  };
+}
+const NOMBRE_MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+// Todas las áreas: las categorías del presupuesto (y las de gastos de partidas
+// archivadas de ese mes), en el orden del presupuesto
+export function areas(db, mes, hoy = hoyISO()) {
+  const cats = ordenCategorias(db.partidas.filter((p) => p.activa));
+  for (const m of movsDeMes(db, mes)) {
+    const p = m.tipo === "gasto" && db.partidas.find((x) => x.id === m.partidaId);
+    if (p && !cats.includes(p.categoria)) cats.push(p.categoria);
+  }
+  for (const v of db.vehiculos || []) if (!cats.includes(categoriaVehiculo(db, v))) cats.push(categoriaVehiculo(db, v));
+  return cats.map((c) => resumenArea(db, c, mes, hoy));
+}
