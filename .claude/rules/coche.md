@@ -8,7 +8,6 @@ paths:
 
 # Coche
 
-- Tablas: `vehiculos`, `repostajes`, `mantenimientos` y `recordatorios`.
-- Repostajes y mantenimientos apuntan a su gasto con `movimientoId`. `op.guardarGasto` los crea, actualiza o borra en la misma operación.
-- `borrarMovimiento` y `restaurarMovimientos` los llevan junto con su gasto (marcados con `_tabla`).
-- Un vehículo va al área de su partida de combustible (`categoriaVehiculo`).
+- Tablas: `vehiculos`, `repostajes`, `mantenimientos`, `recordatorios`.
+- Repostajes y mantenimientos apuntan a su gasto con `movimientoId`; `op.guardarGasto` los crea, actualiza o borra en la misma operación.
+- `borrarMovimiento` / `restaurarMovimientos` los llevan juntos (marcados con `_tabla`).

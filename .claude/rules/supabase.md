@@ -11,7 +11,7 @@ paths:
 
 Hay dos motores y los dos deben seguir funcionando:
 
-- `src/motores/supabase.js`: copia local más cola sin conexión. Al añadir un campo o una tabla, adapta `aFila`, `deFila`, `CONFLICTO`, la descarga y `aplicarLocal`.
+- `src/motores/supabase.js`: copia local más cola sin conexión. Adapta `aFila`, `deFila`, `CONFLICTO`, la descarga y `aplicarLocal`.
 - `src/motores/servidor.js` + `server/rutas.js`: las operaciones compuestas van por `POST /api/op/:nombre` y tienen que estar en la lista `OPS_COMPUESTAS`.
 
 ## Cambios en el esquema
